@@ -67,8 +67,6 @@ This means:
 
 ## Wi-Fi Configuration (Sensitive)
 
-⚠️ **This section contains plaintext credentials.
-Do NOT share publicly.**
 
 The robot uses `wpa_supplicant` with interface-specific configuration:
 
@@ -249,7 +247,70 @@ This is a **designed human acknowledgment step**, not a software command.
   * Cause unexpected motion
   * Damage hardware or injure people
 
-No hardware safety bypass was performed.
+## STO Bypass Configuration (All Four Driver Boards)
+
+> **WARNING**  
+> The STO (Safe Torque Off) inputs on the AMC motor driver boards are part of a
+> **certified functional safety system**.  
+> The procedure described below **intentionally disables all safety protections**
+> and must only be used for controlled commissioning and debugging.
+
+---
+
+### Overview
+
+To enable motor operation without the Siemens safety circuit, the STO system was
+**intentionally bypassed on all four AMC driver boards**.
+
+---
+
+### Procedure (Repeated Identically on All Four Drives)
+
+For **each AMC driver board (Driver 1–4)**:
+
+1. **Locate the STO terminals** on the AMC drive:
+   - `STO1+`
+   - `STO2+`
+   - `STO COM` / `STO GND`
+
+2. **Apply a direct +24 V DC supply** to:
+   - `STO1+`
+   - `STO2+`
+
+3. **Verify the following conditions**:
+   - Both STO channels (`STO1` and `STO2`) receive **continuous 24 V**
+   - The **same 24 V supply** is used for all four driver boards
+   - The 24 V supply ground is correctly referenced to the drive logic ground,
+     per AMC documentation
+
+4. This configuration was applied **identically to all four AMC driver boards**,
+   resulting in:
+   - STO asserted (logic-high) on every drive
+   - All drives permitted to generate torque when enabled via CAN
+
+---
+
+### Resulting System State
+
+With this configuration:
+
+- **STO functionality is fully disabled**
+- Siemens safety relays, E-stop chains, and interlocks are **inactive**
+- Motor torque can be enabled **purely via CAN commands**
+- Any software, wiring, or control fault can cause **immediate motor motion**
+
+---
+
+### Safety Implications
+
+Bypassing STO can:
+
+- Defeat Safe Torque Off protection
+- Cause unexpected or uncontrolled motion
+- Latch irreversible drive faults
+- Damage hardware
+- Can also cause Injury
+
 
 ---
 
@@ -261,9 +322,9 @@ No hardware safety bypass was performed.
 | Maintenance Web UI | ✅ Working    |
 | CAN Bus            | ✅ Active     |
 | Motion Commands    | ✅ Sent       |
-| STO Outputs        | ❌ Disabled   |
+| STO Outputs        | ✅ Disabled   |
 | eth1 Link          | ❌ NO-CARRIER |
-| Motor Torque       | ❌ Inhibited  |
+| Motor Torque       | ✅ Inhibited  |
 
 ---
 
@@ -562,6 +623,11 @@ cansend can0 301#0F0001
 **Terminal A (50 Hz SYNC loop):**
 
 ```bash
+I recommend logging the candump by running the run_motor.sh in PCAN-View and find the appropriate cycle time
+```
+
+
+```bash
 while true; do
   cansend can0 080#
   sleep 0.02
@@ -602,7 +668,7 @@ cansend can0 000#0102
 
 ### RPDO3 Configuration
 
-- **COB-ID:** Typically `0x401` (after enabling)
+- **COB-ID:** Typically `0x401 or 0x501` (after enabling) 
 - **Mapping:**
   - 0x6040 (Controlword, 16 bits)
   - 0x607A (Target Position, 32 bits)
@@ -686,6 +752,695 @@ cansend can0 602#4003160000000000
 cansend can0 602#4003160100000000
 cansend can0 602#4003160200000000
 ```
+
+---
+
+
+# CAN Motor Control for Differential Drive Robot
+
+Complete guide to control CANopen motors on a differential drive robot using Python and SocketCAN.
+
+## Table of Contents
+- [Hardware Requirements](#hardware-requirements)
+- [Software Requirements](#software-requirements)
+- [Initial Setup](#initial-setup)
+- [Understanding Your Motors](#understanding-your-motors)
+- [Getting Started](#getting-started)
+- [Scripts Overview](#scripts-overview)
+- [Troubleshooting](#troubleshooting)
+- [Advanced Usage](#advanced-usage)
+
+---
+
+## Hardware Requirements
+
+- Differential drive robot with CANopen motor controllers
+- CAN-to-USB adapter (or built-in CAN interface)
+- Linux computer (tested on Ubuntu)
+- 2x Motors with CANopen support (tested with nodes 1 and 2)
+
+## Software Requirements
+
+- Python 3.7+
+- python-can library
+- SocketCAN (included in Linux kernel)
+
+### Installation
+```bash
+# Install python-can
+pip install python-can
+
+# Verify SocketCAN is available
+sudo modprobe can
+sudo modprobe can_raw
+```
+
+---
+
+## Initial Setup
+
+### 1. Configure CAN Interface
+
+First, set up your CAN interface. Replace `can0` with your interface name if different:
+```bash
+# Bring up CAN interface at 1Mbit/s (adjust bitrate if needed)
+sudo ip link set can0 type can bitrate 1000000
+sudo ip link set can0 up
+
+# Verify interface is up
+ip link show can0
+```
+
+**Make it persistent** (optional):
+
+Create `/etc/systemd/network/80-can.network`:
+```ini
+[Match]
+Name=can0
+
+[CAN]
+BitRate=1000000
+```
+
+### 2. Verify CAN Communication
+
+Before running any scripts, verify you can see CAN traffic:
+```bash
+# Install can-utils if not present
+sudo apt-get install can-utils
+
+# Monitor CAN bus (Ctrl+C to stop)
+candump can0
+```
+
+You should see CAN messages if your motors are powered on.
+
+---
+
+## Understanding Your Motors
+
+### Identifying Motor Node IDs
+
+Motors communicate using CANopen node IDs. Common patterns:
+- **Node 1** (Left motor): Uses IDs `0x601` (SDO request), `0x581` (SDO response), `0x501` (RPDO)
+- **Node 2** (Right motor): Uses IDs `0x602`, `0x582`, `0x502`
+
+### Discovery Script
+
+Use this script to find which nodes are responding:
+```python
+#!/usr/bin/env python3
+"""ping.py - Discover active CANopen nodes"""
+import can
+import time
+
+bus = can.Bus(channel='can0', interface='socketcan')
+
+print("Scanning for CANopen nodes...")
+
+for node_id in range(1, 5):
+    print(f"\nTrying Node {node_id}...")
+    
+    # Send SDO read request for statusword (0x6041)
+    req_id = 0x600 + node_id
+    resp_id = 0x580 + node_id
+    
+    msg = can.Message(
+        arbitration_id=req_id,
+        data=[0x40, 0x41, 0x60, 0x00, 0, 0, 0, 0],
+        is_extended_id=False
+    )
+    bus.send(msg)
+    time.sleep(0.1)
+    
+    # Check for response
+    response = bus.recv(timeout=0.5)
+    if response and response.arbitration_id == resp_id:
+        print(f"  ✓ Node {node_id} responded!")
+        print(f"    Response: {response}")
+    else:
+        print(f"  ✗ No response from Node {node_id}")
+
+bus.shutdown()
+```
+
+Run it:
+```bash
+python3 ping.py
+```
+
+---
+
+## Getting Started
+
+### Step 1: Capture Motor Configuration
+
+If your robot came with proprietary control software, capture the CAN traffic to understand the initialization sequence:
+```bash
+# Start logging (in one terminal)
+candump can0 -l
+
+# Run the proprietary software to start motors (in another terminal/computer)
+
+# Stop logging with Ctrl+C
+# This creates candump-YYYY-MM-DD_HHMMSS.log
+```
+
+### Step 2: Initialize Motors
+
+Create separate initialization scripts for each motor. Here's the template:
+
+**`init_left_motor.py`** (Node 1):
+```python
+#!/usr/bin/env python3
+"""
+Left Motor (Node 1) - Complete Initialization
+"""
+import can
+import struct
+import time
+
+bus = can.Bus(channel='can0', interface='socketcan')
+NODE = 1
+
+def wait_for_sdo_response(timeout=0.5):
+    """Wait for SDO response"""
+    start = time.time()
+    while time.time() - start < timeout:
+        msg = bus.recv(timeout=0.1)
+        if msg and msg.arbitration_id == (0x580 + NODE):
+            return True
+    return False
+
+def send_sdo(data):
+    """Send SDO and wait for response"""
+    bus.send(can.Message(
+        arbitration_id=0x600 + NODE, 
+        data=data, 
+        is_extended_id=False
+    ))
+    return wait_for_sdo_response()
+
+def send_cmd(ctrl, vel=0):
+    """Send RPDO command + SYNC"""
+    msg = can.Message(
+        arbitration_id=0x500 + NODE,
+        data=struct.pack('<HiH', ctrl, vel, 0),
+        is_extended_id=False
+    )
+    bus.send(msg)
+    time.sleep(0.002)
+    
+    # Send SYNC
+    sync = can.Message(arbitration_id=0x080, data=[], is_extended_id=False)
+    bus.send(sync)
+    time.sleep(0.008)
+
+def send_nmt(data):
+    """Send NMT command"""
+    bus.send(can.Message(
+        arbitration_id=0x000, 
+        data=data, 
+        is_extended_id=False
+    ))
+    time.sleep(0.1)
+
+print("="*70)
+print(f"MOTOR NODE {NODE} - INITIALIZATION")
+print("="*70)
+
+# Reset node
+print(f"\n[1/11] Resetting Node {NODE}...")
+send_nmt(bytes([0x80, NODE]))
+time.sleep(0.5)
+
+# Configure PDOs, motor parameters, etc.
+# (Add all SDO configuration commands from your captured log)
+print("[2/11] Configuring manufacturer parameters...")
+send_sdo(bytes([0x42, 0x02, 0x20, 0x05, 0x00, 0x00, 0x00, 0x00]))
+# ... (add all your SDO commands here)
+
+# CRITICAL: State machine activation via RPDO
+print("[11/11] State machine via RPDO (MOTOR ENGAGE)...")
+send_cmd(0x0080, 0)  # Fault reset
+for _ in range(5):
+    send_cmd(0x0006, 0)  # Shutdown
+for _ in range(5):
+    send_cmd(0x0007, 0)  # Switch on
+for _ in range(10):
+    send_cmd(0x000F, 0)  # Enable operation
+
+print(f"\n✓ MOTOR NODE {NODE} INITIALIZED AND ENGAGED!")
+print("  You should have heard a click sound")
+
+bus.shutdown()
+```
+
+**For Node 2 (Right motor)**: Copy the script and change `NODE = 1` to `NODE = 2`.
+
+Run initialization:
+```bash
+python3 init_left_motor.py
+python3 init_right_motor.py
+```
+
+You should hear a click/engagement sound from each motor.
+
+### Step 3: Test Motor Control
+
+**`speed_test.py`** - Test single motor:
+```python
+#!/usr/bin/env python3
+"""
+Single Motor Speed Test
+"""
+import can
+import struct
+import time
+
+bus = can.Bus(channel='can0', interface='socketcan')
+
+# CONFIGURATION
+NODE = 1  # Change to 2 for right motor
+CMD_PER_WHEEL_RPM = 3814.0  # Calibration constant
+TARGET_RPM = 50  # Test speed
+
+def send_cmd(ctrl, vel=0):
+    """Send RPDO command + SYNC"""
+    msg = can.Message(
+        arbitration_id=0x500 + NODE,
+        data=struct.pack('<HiH', ctrl, vel, 0),
+        is_extended_id=False
+    )
+    bus.send(msg)
+    time.sleep(0.002)
+    
+    sync = can.Message(arbitration_id=0x080, data=[], is_extended_id=False)
+    bus.send(sync)
+    time.sleep(0.008)
+
+def send_sdo_read(node_id, index, subindex):
+    """Read via SDO"""
+    cob_id = 0x600 + node_id
+    payload = [0x40, index & 0xFF, (index >> 8) & 0xFF, subindex, 0, 0, 0, 0]
+    msg = can.Message(arbitration_id=cob_id, data=payload, is_extended_id=False)
+    bus.send(msg)
+    time.sleep(0.05)
+    
+    msg = bus.recv(timeout=0.5)
+    if msg and len(msg.data) >= 8:
+        if msg.data[0] == 0x42:  # 2 bytes
+            return struct.unpack('<H', bytes(msg.data[4:6]))[0]
+        elif msg.data[0] == 0x43 or msg.data[0] == 0x47:  # 4 bytes
+            return struct.unpack('<i', bytes(msg.data[4:8]))[0]
+    return None
+
+print(f"Testing Motor Node {NODE}")
+print(f"Target: {TARGET_RPM} RPM\n")
+
+# Check status
+status = send_sdo_read(NODE, 0x6041, 0x00)
+if not status or not (status & 0x0004):
+    print("⚠️  Motor not enabled! Run initialization script first.")
+    bus.shutdown()
+    exit()
+
+print("✓ Motor operational!\n")
+
+target_cmd = int(round(TARGET_RPM * CMD_PER_WHEEL_RPM))
+
+# Ramp up
+print("Ramping up...")
+steps = 20
+for i in range(steps + 1):
+    vel = int(target_cmd * i / steps)
+    send_cmd(0x000F, vel)
+    time.sleep(0.1)
+
+# Hold
+print(f"Holding at {TARGET_RPM} RPM for 5 seconds...")
+start = time.time()
+while time.time() - start < 5.0:
+    send_cmd(0x000F, target_cmd)
+
+# Ramp down
+print("Ramping down...")
+for i in range(steps, -1, -1):
+    vel = int(target_cmd * i / steps)
+    send_cmd(0x000F, vel)
+    time.sleep(0.08)
+
+# Stop
+print("Stopping...")
+for _ in range(30):
+    send_cmd(0x000F, 0)
+
+# Disable
+for _ in range(10):
+    send_cmd(0x0006, 0)
+
+bus.shutdown()
+print("\n✓ Test complete!")
+```
+
+Run test:
+```bash
+python3 speed_test.py
+```
+
+---
+
+## Scripts Overview
+
+### Dual Motor Control
+
+**`robot_control.py`** - Control both motors for differential drive:
+```python
+#!/usr/bin/env python3
+"""
+Differential Drive Robot Control
+"""
+import can
+import struct
+import time
+
+bus = can.Bus(channel='can0', interface='socketcan')
+CMD_PER_WHEEL_RPM = 3814.0
+
+def send_cmd_motor(node, ctrl, vel=0):
+    """Send RPDO command to specific motor"""
+    rpdo_id = 0x500 + node
+    msg = can.Message(
+        arbitration_id=rpdo_id,
+        data=struct.pack('<HiH', ctrl, vel, 0),
+        is_extended_id=False
+    )
+    bus.send(msg)
+    time.sleep(0.001)
+
+def send_sync():
+    """Send SYNC to all motors"""
+    sync = can.Message(arbitration_id=0x080, data=[], is_extended_id=False)
+    bus.send(sync)
+    time.sleep(0.008)
+
+def set_velocities(left_rpm, right_rpm):
+    """Set velocities for both motors simultaneously"""
+    left_cmd = int(round(left_rpm * CMD_PER_WHEEL_RPM))
+    right_cmd = int(round(right_rpm * CMD_PER_WHEEL_RPM))
+    
+    send_cmd_motor(1, 0x000F, left_cmd)
+    send_cmd_motor(2, 0x000F, right_cmd)
+    send_sync()
+
+# Movement primitives
+def forward(speed_rpm, duration):
+    """Drive forward"""
+    start = time.time()
+    while time.time() - start < duration:
+        set_velocities(speed_rpm, speed_rpm)
+
+def backward(speed_rpm, duration):
+    """Drive backward"""
+    forward(-speed_rpm, duration)
+
+def rotate_left(speed_rpm, duration):
+    """Rotate counter-clockwise"""
+    start = time.time()
+    while time.time() - start < duration:
+        set_velocities(-speed_rpm, speed_rpm)
+
+def rotate_right(speed_rpm, duration):
+    """Rotate clockwise"""
+    start = time.time()
+    while time.time() - start < duration:
+        set_velocities(speed_rpm, -speed_rpm)
+
+def stop():
+    """Stop both motors"""
+    for _ in range(30):
+        set_velocities(0, 0)
+
+# Example usage
+if __name__ == "__main__":
+    print("Robot Control Test\n")
+    
+    print("→ Forward")
+    forward(50, 2)
+    stop()
+    time.sleep(0.5)
+    
+    print("→ Backward")
+    backward(50, 2)
+    stop()
+    time.sleep(0.5)
+    
+    print("→ Rotate Right")
+    rotate_right(50, 2)
+    stop()
+    time.sleep(0.5)
+    
+    print("→ Rotate Left")
+    rotate_left(50, 2)
+    stop()
+    
+    # Disable motors
+    for _ in range(10):
+        send_cmd_motor(1, 0x0006, 0)
+        send_cmd_motor(2, 0x0006, 0)
+        send_sync()
+    
+    bus.shutdown()
+    print("\n✓ Complete!")
+```
+
+---
+
+## Troubleshooting
+
+### Motor doesn't engage (no click sound)
+
+**Symptom**: Initialization runs without errors but no click sound.
+
+**Solution**: Make sure you're sending the RPDO state machine commands at the end of initialization:
+```python
+send_cmd(0x0080, 0)  # Fault reset
+for _ in range(5):
+    send_cmd(0x0006, 0)  # Shutdown
+for _ in range(5):
+    send_cmd(0x0007, 0)  # Switch on
+for _ in range(10):
+    send_cmd(0x000F, 0)  # Enable operation
+```
+
+### Motor reports "Operation Enabled" but doesn't move
+
+**Symptom**: Status shows `0x0637` but velocity stays at 0.
+
+**Cause**: Sending velocity via SDO instead of RPDO.
+
+**Solution**: Use RPDO commands with SYNC:
+```python
+send_cmd(0x000F, velocity_command)  # Not send_sdo!
+```
+
+### "No SDO response" warnings
+
+**Symptom**: Warnings during initialization but motor still works.
+
+**Cause**: Timing issues or non-critical SDO reads.
+
+**Solution**: Usually safe to ignore if motor engages. If problematic, increase timeout:
+```python
+def wait_for_sdo_response(timeout=1.0):  # Increase from 0.5 to 1.0
+```
+
+### CAN interface not found
+```bash
+# Check interface name
+ip link show
+
+# Bring up interface
+sudo ip link set can0 up
+
+# Check for errors
+dmesg | grep can
+```
+
+### Wrong bitrate
+
+**Symptom**: No CAN traffic or garbled messages.
+
+**Solution**: Common CAN bitrates are 125k, 250k, 500k, 1M. Try:
+```bash
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 500000
+sudo ip link set can0 up
+```
+
+### Statusword stuck at 0x0228 (Quick Stop)
+
+**Symptom**: Motor in Quick Stop state, not ready.
+
+**Solution**: Send fault reset before enabling:
+```python
+send_sdo(bytes([0x2B, 0x40, 0x60, 0x00, 0x80, 0x00, 0x00, 0x00]))  # Fault reset
+time.sleep(0.5)
+# Then proceed with normal state machine
+```
+
+---
+
+## Advanced Usage
+
+### Velocity Feedback
+
+Read actual motor velocity (0x606C):
+```python
+def read_actual_velocity(node):
+    """Read actual velocity from motor"""
+    # Send SDO read request for 0x606C
+    req = can.Message(
+        arbitration_id=0x600 + node,
+        data=[0x40, 0x6C, 0x60, 0x00, 0, 0, 0, 0],
+        is_extended_id=False
+    )
+    bus.send(req)
+    time.sleep(0.05)
+    
+    # Parse response
+    resp = bus.recv(timeout=0.5)
+    if resp and len(resp.data) >= 8:
+        actual_cmd = struct.unpack('<i', bytes(resp.data[4:8]))[0]
+        actual_rpm = actual_cmd / CMD_PER_WHEEL_RPM
+        return actual_rpm
+    return None
+```
+
+### Closed-Loop Control
+```python
+class MotorController:
+    def __init__(self, node, kp=0.1):
+        self.node = node
+        self.kp = kp  # Proportional gain
+    
+    def set_velocity_closed_loop(self, target_rpm, duration):
+        """Maintain target velocity with feedback"""
+        start = time.time()
+        
+        while time.time() - start < duration:
+            actual_rpm = read_actual_velocity(self.node)
+            if actual_rpm is not None:
+                error = target_rpm - actual_rpm
+                correction = self.kp * error
+                adjusted_rpm = target_rpm + correction
+                
+                cmd = int(round(adjusted_rpm * CMD_PER_WHEEL_RPM))
+                send_cmd_motor(self.node, 0x000F, cmd)
+            
+            time.sleep(0.05)
+```
+
+### Emergency Stop
+```python
+def emergency_stop():
+    """Immediate stop for both motors"""
+    for _ in range(50):
+        send_cmd_motor(1, 0x000F, 0)
+        send_cmd_motor(2, 0x000F, 0)
+        send_sync()
+        time.sleep(0.001)
+```
+
+### Calibration
+
+Find your `CMD_PER_WHEEL_RPM` constant:
+```python
+# 1. Command a known value (e.g., 100000)
+# 2. Measure actual wheel RPM with tachometer or encoder
+# 3. Calculate: CMD_PER_WHEEL_RPM = command_value / measured_rpm
+```
+
+---
+
+## Understanding CANopen Communication
+
+### SDO (Service Data Object)
+- Used for configuration and setup
+- Request/response protocol
+- Node 1: `0x601` (request) → `0x581` (response)
+
+### RPDO (Receive Process Data Object)
+- Used for real-time control commands
+- No response required
+- Node 1: `0x501` (commands)
+
+### SYNC
+- Triggers PDO processing
+- Broadcast message: `0x080`
+- Sent after RPDO commands
+
+### NMT (Network Management)
+- Controls node states (reset, start, stop)
+- Broadcast or addressed
+- `0x000`
+
+---
+
+## Project Structure
+```
+robot-control/
+├── README.md
+├── ping.py                 # Discover active nodes
+├── init_left_motor.py      # Initialize left motor (Node 1)
+├── init_right_motor.py     # Initialize right motor (Node 2)
+├── speed_test.py           # Single motor test
+├── robot_control.py        # Dual motor control
+└── can_traffic_monitor.py  # Log CAN traffic
+```
+
+---
+
+## Contributing
+
+If you're adapting this for different motors:
+
+1. Capture your motor's CAN traffic with `candump`
+2. Identify the SDO configuration sequence
+3. Adapt the initialization scripts
+4. Test with a single motor first
+5. Submit a PR with your motor configuration!
+
+---
+
+## License
+
+MIT License - Feel free to use and modify for your projects.
+
+---
+
+## Acknowledgments
+
+- Built using [python-can](https://python-can.readthedocs.io/)
+- CANopen protocol specification: CiA 301
+- Tested on differential drive robots with CANopen motor controllers
+
+---
+
+## Support
+
+Having issues? Check:
+1. CAN interface is up: `ip link show can0`
+2. Correct bitrate: Try 125k, 250k, 500k, 1M
+3. Motor power is on
+4. Correct node IDs (use `ping.py`)
+5. Initialization script completes successfully
+6. You hear the engagement click
+
+Still stuck? Open an issue with:
+- Your `candump` log
+- Output from initialization script
+- Motor controller model
 
 ---
 
