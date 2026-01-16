@@ -1401,6 +1401,153 @@ robot-control/
 
 ---
 
+# Peripherals Testing – IMU, LCD, and LED Control
+
+This section documents Python scripts for testing and controlling peripheral devices on the robot.
+
+---
+
+## Available Scripts
+
+### IMU (Inertial Measurement Unit)
+
+| Script | Description | Serial Port | Baud Rate |
+|------|------------|------------|-----------|
+| `imu_read_accel_gyro.py` | Reads accelerometer (m/s²) and gyroscope (rad/s) data | `/dev/ttymxc4` | 115200 |
+| `imu_euler_only.py` | Reads orientation data (roll, pitch, yaw) | `/dev/ttymxc4` | 115200 |
+| `imu_to_lcd.py` | Streams IMU data to LCD display at 5 Hz | IMU: `/dev/ttymxc4`<br>LCD: `/dev/ttymxc2` | IMU: 115200<br>LCD: 57600 |
+
+---
+
+### LCD Display
+
+| Script | Description | Serial Port | Baud Rate |
+|------|------------|------------|-----------|
+| `lcd_test.py` | Tests LCD display with custom messages | `/dev/ttymxc2` | 57600 |
+
+---
+
+### LED Indicators
+
+| Script | Description | Control Method |
+|------|------------|----------------|
+| `led_sequence.py` | Runs RGB LED test sequence | Sysfs (`/sys/class/leds/`) |
+
+---
+
+## Quick Start
+
+### 1. Test IMU
+```bash
+python3 imu_read_accel_gyro.py
+```
+
+### 2. Test LCD
+```bash
+python3 lcd_test.py
+```
+
+### 3. Test LEDs
+```bash
+python3 led_sequence.py
+```
+
+### 4. Combined IMU → LCD Display
+```bash
+python3 imu_to_lcd.py
+```
+
+---
+
+## IMU Configuration
+
+The IMU uses the **Xsens MTi binary protocol**.
+
+```python
+# Standard initialization sequence
+send_packet(0x30)          # Enter configuration mode
+send_packet(0xC0, cfg_data) # Configure output data IDs
+send_packet(0x10)          # Enter measurement mode
+```
+
+### Enabled Output Data IDs (DIDs)
+
+| Data | Data ID | Format | Units |
+|----|--------|--------|-------|
+| Accelerometer | `0x4020` | 3 × float32 | m/s² |
+| Gyroscope | `0x8020` | 3 × float32 | rad/s |
+| Euler Angles | `0x2030` | 3 × float32 | degrees |
+
+---
+
+## LCD Control Commands
+
+LCD communication is via UART using command prefix `0xFE`.
+
+| Function | Command |
+|--------|--------|
+| Initialize | `0xFE 0x41` |
+| Clear display | `0xFE 0x51` |
+| Set cursor | `0xFE 0x45 + address` |
+
+### Line Addresses
+
+- Line 1 → `0x00`
+- Line 2 → `0x40`
+- Line 3 → `0x14`
+- Line 4 → `0x54`
+
+---
+
+## LED Control
+
+LEDs are controlled through **Linux sysfs**, not UART/I²C/CAN.
+
+### LED Paths
+
+- Red → `/sys/class/leds/red:status/brightness`
+- Green → `/sys/class/leds/green:status/brightness`
+- Blue → `/sys/class/leds/blue:status/brightness`
+
+### Brightness Values
+
+- `0` → OFF
+- `255` → ON (full brightness)
+
+---
+
+## Dependencies
+
+```bash
+pip install pyserial
+```
+
+---
+
+## Permissions
+
+```bash
+# Allow serial access
+sudo usermod -a -G dialout $USER
+
+# Log out and log back in for changes to take effect
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Possible Solution |
+|-----|------------------|
+| IMU: No data | Check `/dev/ttymxc4` exists and permissions |
+| LCD: Blank | Adjust LCD contrast potentiometer |
+| LEDs not lighting | Check sysfs write permissions |
+| Serial port missing | Verify device tree configuration |
+| Permission denied | Run with `sudo` or check user groups |
+
+---
+
+
 ## Contributing
 
 If you're adapting this for different motors:
