@@ -66,12 +66,19 @@ while True:
 
     # Print all available data
     output_parts = []
+    store_imu = dict() # store imu data in a dictionary
     
     if acc_x is not None:
         output_parts.append(f"ACC: X:{acc_x:6.3f} Y:{acc_y:6.3f} Z:{acc_z:6.3f} m/s²")
+        store_imu['accel_x'] = acc_x
+        store_imu['accel_y'] = acc_y
+        store_imu['accel_z'] = acc_z
     
     if gyr_x is not None:
         output_parts.append(f"GYR: X:{gyr_x:6.3f} Y:{gyr_y:6.3f} Z:{gyr_z:6.3f} rad/s")
+        store_imu['gyro_x'] = acc_x
+        store_imu['gyro_y'] = acc_y
+        store_imu['gyro_z'] = acc_z
     
     if output_parts:
         print(" | ".join(output_parts))
