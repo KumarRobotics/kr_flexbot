@@ -27,13 +27,14 @@ class IMX7Communication:
 
         # commmand vars
 
-        self.target_rpm = 0.0
+        self.target_left_rpm = 0.0
+        self.target_right_rpm = 0.0
         self.lcd_text = ""
         self.led_color = ""
 
         self.running = True
 
-    def pack_sensor_data(self, rpm, imu_data, encoder_data, tof_data):
+    def pack_sensor_data(self, l_rpm, r_rpm, imu_data, encoder_data, tof_data):
         """
 
         Pack sensor data into a byte stream
@@ -45,7 +46,8 @@ class IMX7Communication:
         """
 
         data = {
-            'rpm': rpm,
+            'left_rpm': l_rpm,
+            'right_rpm': r_rpm,
             'imu': {
                 'accel_x':imu_data['accel_x'],
                 'accel_y': imu_data['accel_y'],
@@ -68,13 +70,13 @@ class IMX7Communication:
         }
         return json.dumps(data).encode('utf-8')
     
-    def send_sensor_data(self, rpm, imu_data, encoder_data, tof_data):
+    def send_sensor_data(self, l_rpm, r_rpm, imu_data, encoder_data, tof_data):
         """
         send sensor data to Jetson
         
         """
 
-        packet = self.pack_sensor_data(rpm=rpm, imu_data=imu_data, encoder_data=encoder_data,tof_data=tof_data)
+        packet = self.pack_sensor_data(l_rpm=l_rpm, r_rpm=r_rpm, imu_data=imu_data, encoder_data=encoder_data,tof_data=tof_data)
         try:
             self.send_sock.sendto(packet, (self.jetson_ip, self.send_port))
         except Exception as e:
@@ -85,9 +87,13 @@ class IMX7Communication:
             try:
                 data, addr = self.recv_sock.recvfrom(4096)
                 cmd = json.loads(data.decode('utf-8'))
-                if 'rpm' in cmd:
-                    self.target_rpm = cmd['rpm']
-                    print(f"received rpm command: {self.target_rpm}")
+                if 'left_rpm' in cmd:
+                    self.target_left_rpm = cmd['left_rpm']
+                    print(f"received rpm command: {self.target_left_rpm}")
+
+                if 'right_rpm' in cmd:
+                    self.target_right_rpm = cmd['right_rpm']
+                    print(f"received rpm command: {self.target_right_rpm}")
 
                 if 'lcd' in cmd:
                     self.lcd_text = cmd['lcd']
