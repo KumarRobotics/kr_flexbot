@@ -318,13 +318,13 @@ Bypassing STO can:
 
 | Subsystem          | Status       |
 | ------------------ | ------------ |
-| Wi-Fi / SSH        | ✅ Working    |
-| Maintenance Web UI | ✅ Working    |
-| CAN Bus            | ✅ Active     |
-| Motion Commands    | ✅ Sent       |
-| STO Outputs        | ✅ Disabled   |
-| eth1 Link          | ❌ NO-CARRIER |
-| Motor Torque       | ✅ Inhibited  |
+| Wi-Fi / SSH        | ✅ Working   |
+| Custom Linux UI    | ✅ Working   |
+| CAN Bus            | ✅ Active    |
+| Motion Commands    | ✅ Sent      |
+| STO Outputs        | ✅ Enabled   |
+| eth1 Link          | ✅ Enabled   |
+| Motor Torque       | ✅ Enabled   |
 
 ---
 
@@ -1387,19 +1387,599 @@ Find your `CMD_PER_WHEEL_RPM` constant:
 
 ---
 
-## Project Structure
+## Project Directory Structure
 ```
-robot-control/
+.
+├── can_traffic_monitor.py
+├── IMU/
+│   ├── imu_euler_only.py
+│   ├── imu_read_accel_gyro.py
+│   └── imu_to_lcd.py
+├── LCD/
+│   └── lcd_test.py
+├── LED/
+│   └── led_sequence.py
+├── MOTORS/
+│   ├── differential_drive_test.py
+│   ├── init_left_motor.py
+│   ├── init_right_motor.py
+│   ├── ping.py
+│   ├── speed_test.py
+│   ├── stop.py
+│   └── test.py
 ├── README.md
-├── ping.py                 # Discover active nodes
-├── init_left_motor.py      # Initialize left motor (Node 1)
-├── init_right_motor.py     # Initialize right motor (Node 2)
-├── speed_test.py           # Single motor test
-├── robot_control.py        # Dual motor control
-└── can_traffic_monitor.py  # Log CAN traffic
+└── run_motor.sh
 ```
 
+**Total**: 6 directories, 46 files
+
+### Directory Contents
+
+- **IMU/**: IMU sensor interface scripts (Xsens MTi)
+  - Euler angle reading
+  - Accelerometer & gyroscope data
+  - LCD display integration
+
+- **LCD/**: LCD display test and control
+
+- **LED/**: LED control sequences
+
+- **MOTORS/**: Motor control and testing scripts
+  - Differential drive implementation
+  - Individual motor initialization
+  - Speed testing utilities
+  - Motor control functions
+
+- **Root**: CAN bus monitoring and shell scripts
+
 ---
+
+
+# Hybrid Boot Setup: BG Kernel + Debian Userland on iMX7
+
+## Overview
+
+This guide describes how to create a hybrid embedded Linux system that combines:
+- **BG's hardware-enabled kernel** (with full peripheral support)
+- **Debian's userland** (familiar package management and tools)
+- **Existing U-Boot** (no bootloader modifications needed)
+
+This approach is ideal when you have a vendor kernel with proper hardware support but want the flexibility of a standard Linux distribution.
+
+## Hardware Setup
+
+- **Platform**: CompuLab CL-SOM-iMX7
+- **Target Device**: FlexBot2 (BG custom board)
+- **Storage**: 
+  - SD Card (29.7GB) - Original BG system
+  - eMMC (14.5GB) - Debian installation
+- **Peripherals**: 
+  - Ethernet (eth0, eth1)
+  - WiFi (Intel AX200)
+  - IMU (Xsens MTi v2 on /dev/ttymxc4)
+  - CAN bus interfaces
+
+## Prerequisites
+
+### What You Need
+
+1. **Working BG system** on SD card (for extracting kernel/DTB)
+2. **Debian system installed on eMMC** (see installation steps below)
+3. **Serial console access** to the device
+4. **Development computer** with:
+   - WSL/Linux environment
+   - SD card reader
+   - Network access to the device
+
+### Installing Debian on eMMC (Required First Step)
+
+**Important**: The CompuLab CL-SOM-iMX7 does not come with Debian pre-installed on the eMMC. You must install it first before proceeding with this hybrid setup.
+
+#### Download Debian Image from CompuLab
+
+1. Visit the CompuLab support page:
+```
+   https://www.compulab.com/products/computer-on-modules/cl-som-imx7-freescale-i-mx-7-computer-on-module/
+```
+
+2. Navigate to **Downloads** → **Software** → **Debian Images**
+
+3. Download the Debian image for CL-SOM-iMX7:
+   - Look for: `cl-som-imx7-debian-<version>.img.xz` or similar
+   - Example: `debian-buster-cl-som-imx7.img.xz`
+
+#### Flash Debian to eMMC
+
+**Method 1: Using SD Card as Installation Media**
+```bash
+# On your development computer:
+
+# Extract the image
+xz -d cl-som-imx7-debian-*.img.xz
+
+# Flash to SD card (WARNING: This will erase the SD card!)
+sudo dd if=cl-som-imx7-debian-*.img of=/dev/sdX bs=4M status=progress
+sync
+
+# Insert SD card into iMX7 and boot
+# The installer will guide you through installing to eMMC
+```
+
+**Method 2: Direct eMMC Flash (via U-Boot/Fastboot)**
+
+Refer to CompuLab's official documentation for detailed eMMC flashing procedures:
+```
+https://mediawiki.compulab.com/w/index.php?title=CL-SOM-iMX7:_Debian
+```
+
+#### Verify Debian Installation
+
+After installation, boot from eMMC and verify:
+```bash
+# Check eMMC partitions
+lsblk
+# Should show:
+# mmcblk2      179:0    0 14.5G  0 disk
+# ├─mmcblk2p1  179:1    0  100M  0 part
+# └─mmcblk2p2  179:2    0 14.4G  0 part /
+
+# Check Debian version
+cat /etc/debian_version
+# Should show: 10.x (Buster) or similar
+
+# Check kernel (this will be replaced later)
+uname -a
+```
+
+#### Default Credentials
+
+CompuLab's Debian image typically uses:
+- **Username**: `root` or `debian`
+- **Password**: `debian` or `root`
+- **Note**: Change these after first boot for security
+```bash
+# Change root password
+passwd root
+
+# Change debian user password (if exists)
+passwd debian
+```
+
+#### Initial Network Setup
+```bash
+# Ethernet should auto-configure via DHCP
+ip a show eth0
+
+# If needed, manually configure:
+dhclient eth0
+
+# Test connectivity
+ping -c 4 8.8.8.8
+```
+
+### Once Debian is Installed
+
+After successfully installing and booting Debian from eMMC, proceed with the hybrid setup steps below to integrate BG's hardware-enabled kernel.
+
+**Note**: The initial Debian installation uses CompuLab's kernel. This kernel may have limited hardware support. The hybrid setup replaces it with BG's fully-featured kernel while keeping Debian's userland intact.
+
+## Step-by-Step Process
+
+### 1. Extract Required Files from BG SD Card
+
+#### On Your Development Computer
+
+Insert the BG SD card and copy the necessary partitions:
+```bash
+# Identify the SD card device (e.g., /dev/sdb on Linux, \\.\PHYSICALDRIVE2 on Windows)
+lsblk
+
+# Copy partition 13 (kernel)
+sudo dd if=/dev/sdX13 of=partition_13.img bs=1M
+
+# Copy partition 12 (DTB)
+sudo dd if=/dev/sdX12 of=partition_12.img bs=64K
+
+# Verify the files
+file partition_13.img
+# Should show: Linux kernel ARM boot executable zImage (little-endian)
+
+file partition_12.img
+# Should show: Device Tree Blob version 17
+```
+
+#### Alternative: Extract from Running BG System
+
+If you can boot the BG system:
+```bash
+# SSH into BG system
+ssh root@bg-flexbot2
+
+# Copy kernel from partition
+dd if=/dev/mmcblk0p13 of=/tmp/zImage bs=1M
+
+# Copy DTB from partition
+dd if=/dev/mmcblk0p12 of=/tmp/imx7d-bg-flexbot2.dtb bs=64K
+```
+
+### 2. Prepare Boot Files
+
+#### On Development Computer
+```bash
+cd /path/to/extracted/files
+
+# Rename kernel for clarity
+cp partition_13.img zImage-bg
+
+# Rename DTB
+cp partition_12.img imx7d-bg-flexbot2.dtb
+
+# Verify files
+file zImage-bg
+file imx7d-bg-flexbot2.dtb
+
+# Create transfer package
+mkdir bg-boot-files
+cp zImage-bg bg-boot-files/
+cp imx7d-bg-flexbot2.dtb bg-boot-files/
+tar czf bg-boot-files.tar.gz bg-boot-files/
+
+# Verify package
+tar -tzf bg-boot-files.tar.gz
+```
+
+### 3. Collect U-Boot Environment Variables
+
+You need to compare U-Boot environments from both systems to understand boot parameters.
+
+#### From BG System (SD Card U-Boot)
+```bash
+# Boot BG system, interrupt U-Boot (press any key during countdown)
+# At U-Boot prompt:
+printenv > /tmp/bg-uboot-env.txt
+
+# Key variables to note:
+# - fdtfile=imx7d-bg-flexbot2.dtb
+# - console=ttymxc0
+# - loadaddr=0x80800000
+# - fdtaddr=0x83000000
+```
+
+#### From Debian System (eMMC U-Boot)
+```bash
+# Boot Debian system, interrupt U-Boot
+# At U-Boot prompt:
+printenv > /tmp/debian-uboot-env.txt
+
+# Key variables to note:
+# - fdtfile=imx7d-cl-som-imx7.dtb
+# - mmcdev=1 (eMMC device)
+# - mmcpart=1 (boot partition)
+# - mmcblk=2 (block device number)
+```
+
+### 4. Transfer Files to Target Device
+
+Since Debian's kernel doesn't support peripherals yet, use the BG system to do the installation.
+
+#### Option A: Via Network (Using BG System)
+```bash
+# Boot into BG system from SD card
+# Transfer files via SSH
+scp bg-boot-files.tar.gz root@<bg-ip-address>:/tmp/
+```
+
+#### Option B: Via USB/SD Card
+```bash
+# Copy bg-boot-files.tar.gz to USB drive or SD card partition 19
+# On Windows: Copy to the large partition on SD card
+
+# Then on BG system:
+mount /dev/sda1 /mnt/usb  # If USB drive
+# OR
+# File is in /rw if copied to SD partition 19
+```
+
+### 5. Install Boot Files on Debian's eMMC
+
+**Important**: This must be done from the BG system, as it has working hardware drivers.
+```bash
+# Boot BG system from SD card
+# Extract the files
+cd /tmp
+tar xzf bg-boot-files.tar.gz
+ls -lh bg-boot-files/
+
+# Mount Debian's eMMC boot partition
+mkdir -p /mnt/debian-boot
+mount /dev/mmcblk1p1 /mnt/debian-boot
+
+# Backup existing Debian files (optional but recommended)
+mkdir -p /mnt/debian-boot/backup
+cp /mnt/debian-boot/zImage /mnt/debian-boot/backup/zImage-debian
+cp /mnt/debian-boot/*.dtb /mnt/debian-boot/backup/
+
+# Install BG kernel and DTB
+cp bg-boot-files/zImage-bg /mnt/debian-boot/zImage
+cp bg-boot-files/imx7d-bg-flexbot2.dtb /mnt/debian-boot/
+
+# Verify installation
+ls -lh /mnt/debian-boot/
+file /mnt/debian-boot/zImage
+file /mnt/debian-boot/imx7d-bg-flexbot2.dtb
+
+# Sync and unmount
+sync
+umount /mnt/debian-boot
+```
+
+### 6. Configure U-Boot Environment
+
+Reboot and interrupt U-Boot to boot from eMMC. You need to modify Debian's U-Boot environment to load BG's DTB and set correct boot parameters.
+```bash
+# Reboot and interrupt U-Boot
+reboot
+# Press any key during countdown to stop at U-Boot prompt
+
+# Change DTB filename to BG's device tree
+setenv fdtfile imx7d-bg-flexbot2.dtb
+
+# Fix root device path for BG kernel
+# BG's kernel sees eMMC as mmcblk1, not mmcblk2
+setenv mmcargs 'setenv bootargs console=${console},${baudrate} root=/dev/mmcblk1p2 rootwait rw init=/sbin/init'
+
+# Verify settings
+printenv fdtfile mmcpart mmcargs
+
+# Save changes
+saveenv
+
+# Boot
+run emmcboot
+```
+
+### 7. Boot and Verify
+
+After running `emmcboot`, you should see:
+
+1. U-Boot loads BG's kernel from eMMC
+2. U-Boot loads BG's DTB from eMMC
+3. Kernel boots with full hardware support
+4. System mounts Debian rootfs
+5. Init starts Debian userland
+
+Expected boot messages:
+```
+[    0.000000] Booting Linux on physical CPU 0x0
+[    0.000000] Linux version 5.4.149-yocto-standard-fb2-gitAUTOINC+...
+...
+[    4.xxx] pci 0000:01:00.0: [8086:2723] type 00 class 0x028000  (WiFi detected)
+...
+Debian GNU/Linux 10 cl-debian ttymxc0
+```
+
+Login and verify hardware:
+```bash
+# Check kernel version (should be BG's)
+uname -a
+# Linux cl-debian 5.4.149-yocto-standard-fb2-gitAUTOINC+f1c0d2bad0 #1 SMP PREEMPT
+
+# Check network interfaces
+ip a
+# Should show: eth0, eth1, wlp1s0 (WiFi), can0, can1
+
+# Check serial ports
+ls /dev/ttymxc*
+# Should show: ttymxc0, ttymxc2, ttymxc3, ttymxc4, ttymxc5, ttymxc6
+
+# Check I2C buses
+i2cdetect -l
+# Should show: i2c-1, i2c-2, i2c-3
+```
+
+## Troubleshooting
+
+### Issue: "Waiting for root device /dev/mmcblkXpY"
+
+**Cause**: Wrong root device path for the kernel.
+
+**Solution**: Try different device numbers:
+```bash
+# At U-Boot prompt, try these alternatives:
+setenv mmcargs 'setenv bootargs console=${console},${baudrate} root=/dev/mmcblk0p2 rootwait rw init=/sbin/init'
+# OR
+setenv mmcargs 'setenv bootargs console=${console},${baudrate} root=/dev/mmcblk2p2 rootwait rw init=/sbin/init'
+
+saveenv
+run emmcboot
+```
+
+### Issue: "Kernel panic - init failed (error -2)"
+
+**Cause**: Kernel can't find init system.
+
+**Solution**: Add explicit init path:
+```bash
+setenv mmcargs 'setenv bootargs console=${console},${baudrate} root=/dev/mmcblk1p2 rootwait rw init=/sbin/init'
+saveenv
+run emmcboot
+```
+
+### Issue: "Cannot boot from eMMC"
+
+**Cause**: Files not properly installed or U-Boot looking in wrong place.
+
+**Solution**: Manually verify and load:
+```bash
+# At U-Boot prompt:
+mmc dev 1
+mmc rescan
+mmc part
+
+# List files in boot partition
+ls mmc 1:1
+
+# Manually load and boot
+load mmc 1:1 ${loadaddr} zImage
+load mmc 1:1 ${fdtaddr} imx7d-bg-flexbot2.dtb
+setenv bootargs 'console=ttymxc0,115200 root=/dev/mmcblk1p2 rootwait rw init=/sbin/init'
+bootz ${loadaddr} - ${fdtaddr}
+```
+
+## Final U-Boot Configuration
+
+Your working U-Boot environment should have:
+```bash
+fdtfile=imx7d-bg-flexbot2.dtb
+mmcdev=1
+mmcpart=1
+mmcargs=setenv bootargs console=${console},${baudrate} root=/dev/mmcblk1p2 rootwait rw init=/sbin/init
+```
+
+Save with:
+```bash
+saveenv
+```
+
+## Post-Installation Setup
+
+### 1. Install SSH Server
+```bash
+# Fix any interrupted package installations
+dpkg --configure -a
+
+# Install SSH
+apt-get update
+apt-get install -y openssh-server
+
+# Set root password
+passwd root
+
+# Enable and start SSH
+systemctl enable ssh
+systemctl start ssh
+
+# Verify
+systemctl status ssh
+```
+
+### 2. Configure Network
+```bash
+# Ethernet should work automatically
+# For WiFi:
+apt-get install -y wpasupplicant wireless-tools
+
+# Configure WiFi
+wpa_passphrase "SSID" "password" > /etc/wpa_supplicant.conf
+wpa_supplicant -B -i wlp1s0 -c /etc/wpa_supplicant.conf
+dhclient wlp1s0
+```
+
+### 3. Install Development Tools
+```bash
+apt-get install -y \
+    python3-pip \
+    python3-serial \
+    git \
+    build-essential \
+    cmake \
+    htop \
+    vim \
+    screen
+```
+
+## Hardware Verification Checklist
+
+After successful boot, verify all hardware:
+
+- [ ] **Ethernet**: `ip a` shows eth0 and eth1
+- [ ] **WiFi**: `ip a` shows wlp1s0
+- [ ] **Serial Ports**: `/dev/ttymxc*` devices exist
+- [ ] **I2C**: `i2cdetect -l` shows i2c buses
+- [ ] **CAN**: `ip a` shows can0, can1
+- [ ] **IMU**: `/dev/ttymxc4` accessible (Xsens MTi)
+- [ ] **USB**: Devices detected in `lsusb`
+
+## Working with the IMU (Xsens MTi)
+
+The Xsens IMU is on `/dev/ttymxc4` at 115200 baud:
+```bash
+# Test IMU communication
+stty -F /dev/ttymxc4 115200 raw -echo
+timeout 5 cat /dev/ttymxc4 | hexdump -C
+
+# Should see 0xFA (preamble) in the output
+```
+
+See the companion `imu_euler_only.py` script for Python interface.
+
+## Architecture Summary
+```
+┌─────────────────────────────────────┐
+│         Power On / Reset            │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│   U-Boot (Debian's, from eMMC)      │
+│   - Reads from mmcblk1boot0          │
+│   - Configured via saveenv           │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│   Load Kernel & DTB                 │
+│   - zImage (BG's kernel)             │
+│   - imx7d-bg-flexbot2.dtb (BG's DTB) │
+│   From: /dev/mmcblk1p1 (boot part)   │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│   BG Kernel Boots                   │
+│   - Hardware drivers loaded          │
+│   - Device tree applied              │
+│   - Root device: /dev/mmcblk1p2      │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│   Debian Userland                   │
+│   - systemd/init starts              │
+│   - All Debian services              │
+│   - Package management (apt)         │
+└─────────────────────────────────────┘
+```
+
+## Key Advantages of This Approach
+
+✅ **No U-Boot recompilation** - Uses existing bootloader
+✅ **Hardware support intact** - All vendor drivers work
+✅ **Standard Linux userland** - Full Debian package ecosystem
+✅ **Reversible** - Can restore original kernel from backup
+✅ **Low risk** - Only modifies boot partition files
+
+## Partitioning Overview
+
+### BG SD Card (mmcblk0 when inserted)
+- Partitions 1-12: Boot components, SPL, U-Boot, DTB
+- Partition 13: Kernel (set0)
+- Partition 15: Kernel (set1)
+- Partition 16: Rootfs (set0)
+- Partition 17: Rootfs (set1)
+- Partition 19: User data
+
+### Debian eMMC (mmcblk1 in BG, mmcblk2 in Debian)
+**Installed from CompuLab's Debian image**
+- mmcblk1boot0/mmcblk2boot0: U-Boot binary
+- mmcblk1p1/mmcblk2p1: Boot partition (FAT, 100MB) - **Modified with BG files**
+- mmcblk1p2/mmcblk2p2: Root filesystem (ext4, 14.4GB) - **Debian userland**
+
+**Note**: Device naming differs between kernels:
+- BG kernel sees eMMC as `mmcblk1`
+- Debian kernel sees eMMC as `mmcblk2`
+- This is why boot arguments use `mmcblk1p2` for root
+
 
 # Peripherals Testing – IMU, LCD, and LED Control
 
@@ -1595,6 +2175,12 @@ Still stuck? Open an issue with:
 
 ## License
 
+## Credits and References
+
+- CompuLab CL-SOM-iMX7 documentation
+- BG FlexBot2 original system
+- Debian ARM port
+- U-Boot documentation
 
 ## Contributing
 
