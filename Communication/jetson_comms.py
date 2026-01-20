@@ -91,3 +91,59 @@ class JetsonCommunication:
             recv_thread = threading.Thread(target=self.receive_sensor_data, daemon=True)
             recv_thread.start()
             return recv_thread
+        
+        def set_data_callback(self, callback):
+            """ Set call back to be called when new data arrives"""
+            self.data_callback = callback
+
+        def get_current_data(self):
+            return self.latest_data.copy()
+        
+        def close(self):
+            """Clean up sockets"""
+            self.running = False
+            self.recv_sock.close()
+            self.send_sock.close()
+
+
+if __name__=="__main__":
+    IMX7_IP = "" # set an IP for IMX7
+    RECV_PORT = 5000
+    SEND_PORT = 5001
+
+    def on_data_received(data):
+        """ Callback function for processing received sensor data"""
+
+        print(f"\n--- Sensor Data Update ---")
+        print(f"Left RPM: {data['left_rpm']}, Right RPM: {data['right_rpm']}")
+
+
+    comm = JetsonCommunication(IMX7_IP, RECV_PORT, SEND_PORT)
+    comm.set_data_callback(on_data_received)
+
+    comm.start_receiver_thread()
+
+    try:
+        
+        command_counter = 0
+
+        while True:
+            time.sleep(1)
+            command_counter += 1
+
+            if command_counter % 5 == 0:
+                new_left_rpm = 50 + (command_counter * 100) % 20
+                new_right_rpm = 50 + (command_counter * 100) % 20
+                comm.send_command(left_rpm=new_left_rpm, right_rpm=new_right_rpm)
+                print(f"Sent RPM commands: left = {new_left_rpm}, right= {new_right_rpm}")
+
+
+            if command_counter % 7 == 0:
+                # Update LCD
+                lcd_msg = f"Status Ok {command_counter}"
+                comm.send_command(lcd_text=lcd_msg)
+                print(f"Sent LCD text: {lcd_msg}")
+
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        comm.close()

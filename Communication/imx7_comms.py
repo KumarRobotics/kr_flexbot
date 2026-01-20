@@ -1,7 +1,7 @@
 """
 Docstring for Communication.imx7_comms
 IMX7 SBC - Sensor Data Transmitter & Command Receiver
-Receives: RPM commands, LCD display stringm LED color
+Receives: RPM commands, LCD display string, LED color
 """
 
 import socket
@@ -125,3 +125,44 @@ class IMX7Communication:
         self.recv_sock.close()
 
 
+if __name__=='__main__':
+    JETSON_IP = "" # choose a jetson ip.
+    SEND_PORT = 5000
+    RECV_PORT = 5001
+
+    comm = IMX7Communication(JETSON_IP, SEND_PORT, RECV_PORT)
+
+    # start receiver thread
+    comm.start_receiver_thread()
+
+    print(f"Sending sensor data to {JETSON_IP}:{SEND_PORT}")
+    print(f"Listening for commands on port {RECV_PORT}")
+
+    try:
+        while True:
+
+            # set some dummy values for testing
+            left_rpm = 50
+            right_rpm = 50
+
+            imu_data = {
+                'accel_x': 0.1, 'accel_y' : 0.2, 'accel_z': 9.8,
+                'gyro_x': 0.01, 'gyro_y': 0.02, 'gyro_z': 0.03
+            }
+
+            encoder_data = {
+                'position': 12345,
+                'velocity': 10.5
+            }
+
+            tof_data = {
+                'distance': 250.5
+            }
+
+            comm.send_sensor_data(left_rpm, r_rpm=right_rpm, imu_data=imu_data, encoder_data=encoder_data, tof_data=tof_data)
+
+            time.sleep(0.02)
+
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        comm.close()
