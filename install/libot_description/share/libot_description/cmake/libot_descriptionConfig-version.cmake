@@ -1,0 +1,1 @@
+/home/kartik/li_bot/build/libot_description/ament_cmake_core/libot_descriptionConfig-version.cmake

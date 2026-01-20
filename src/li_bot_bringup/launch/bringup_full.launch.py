@@ -18,27 +18,32 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "bringup_sensors.launch.py"))
     )
 
-    # static_tfs = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "static_tfs.launch.py"))
-    # )
+    static_tfs = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "static_tfs.launch.py"))
+    )
 
-    # ekf = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "bringup_state_estimation.launch.py"))
-    # )
+    ekf = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "bringup_state_estimation.launch.py"))
+    )
 
-    # rviz = Node(
-    #     package="rviz2",
-    #     executable="rviz2",
-    #     name="rviz2",
-    #     output="screen",
-    #     arguments=["-d", rviz_config],
-    #     condition=IfCondition(use_rviz),
-    # )
+    slam = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "slam_async.launch.py"))
+    )
+
+    rviz = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config],
+        condition=IfCondition(use_rviz),
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument("use_rviz", default_value="true"),
         sensors,
-        # static_tfs,
-        # ekf,
-        # rviz,
+        static_tfs,
+        ekf,
+        slam,
+        rviz,
     ])

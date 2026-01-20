@@ -2,25 +2,26 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
     pkg_share = get_package_share_directory("li_bot_bringup")
-    default_yaml = os.path.join(pkg_share, "config", "slam_config.yaml")
-    slam_yaml = LaunchConfiguration("slam_yaml")
+    default_params = os.path.join(pkg_share, "config", "slam_config.yaml")
+    slam_params_file = LaunchConfiguration("slam_params_file")
 
-    slam_node = Node(
-        package="slam_toolbox",
-        executable="async_slam_toolbox_node",
-        name="slam_toolbox",
-        output="screen",
-        parameters=[slam_yaml],
-    )
+    slam_share = get_package_share_directory("slam_toolbox")
+    slam_launch = os.path.join(slam_share, "launch", "online_async_launch.py")
 
     return LaunchDescription([
-        DeclareLaunchArgument("slam_yaml", default_value=default_yaml),
-        slam_node,
+        DeclareLaunchArgument("slam_params_file", default_value=default_params),
+
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slam_launch),
+            launch_arguments={
+                "slam_params_file": slam_params_file
+            }.items(),
+        ),
     ])

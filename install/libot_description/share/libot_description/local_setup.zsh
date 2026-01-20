@@ -1,0 +1,1 @@
+/home/kartik/li_bot/build/libot_description/ament_cmake_environment_hooks/local_setup.zsh
