@@ -403,14 +403,16 @@ int main() {
     */
 
     // Wait until Ctrl+C so cleanup behaves like Python try/except/finally.
-    while (!g_stop) {
-      sleep_ms(50);
-    }
 
-    std::cout << "\n\nStopping...\n";
-    for (int k = 0; k < 30; k++) {
-      send_cmd(can, cob, 0x000F, 0);
-    }
+    //***** */
+    // while (!g_stop) {
+    //   sleep_ms(50);
+    // }
+
+    // std::cout << "\n\nStopping...\n";
+    // for (int k = 0; k < 30; k++) {
+    //   send_cmd(can, cob, 0x000F, 0);
+    // }
     for (int k = 0; k < 10; k++) {
       send_cmd(can, cob, 0x0006, 0);
     }
