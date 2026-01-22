@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = "li_bot_bringup"
+package_name = "flex_bot_bringup"
 
 setup(
     name=package_name,
@@ -19,7 +19,7 @@ setup(
     zip_safe=True,
     maintainer="kartik",
     maintainer_email="kartik@todo.todo",
-    description="li_bot bringup: sick picoscan + static TF + EKF (+ optional RViz) + SLAM launcher",
+    description="flex_bot bringup: sick picoscan + static TF + EKF (+ optional RViz) + SLAM launcher",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={"console_scripts": []},

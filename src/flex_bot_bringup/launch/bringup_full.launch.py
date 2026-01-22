@@ -10,7 +10,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory("li_bot_bringup")
+    pkg_share = get_package_share_directory("flex_bot_bringup")
     use_rviz = LaunchConfiguration("use_rviz")
     rviz_config = os.path.join(pkg_share, "rviz", "bringup.rviz")
 

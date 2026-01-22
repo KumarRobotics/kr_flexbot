@@ -8,7 +8,7 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory("li_bot_bringup")
+    pkg_share = get_package_share_directory("flex_bot_bringup")
     default_params = os.path.join(pkg_share, "config", "slam_config.yaml")
     slam_params_file = LaunchConfiguration("slam_params_file")
 
