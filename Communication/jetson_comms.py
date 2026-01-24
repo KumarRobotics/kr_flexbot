@@ -132,8 +132,8 @@ if __name__=="__main__":
             command_counter += 1
 
             if command_counter % 5 == 0:
-                new_left_rpm = 50 + (command_counter * 100) % 20
-                new_right_rpm = 50 + (command_counter * 100) % 20
+                new_left_rpm = 35 + (command_counter * 100) % 20
+                new_right_rpm = 35 + (command_counter * 100) % 20
                 comm.send_command(left_rpm=new_left_rpm, right_rpm=new_right_rpm)
                 print(f"Sent RPM commands: left = {new_left_rpm}, right= {new_right_rpm}")
 
@@ -143,6 +143,22 @@ if __name__=="__main__":
                 lcd_msg = f"Status Ok {command_counter}"
                 comm.send_command(lcd_text=lcd_msg)
                 print(f"Sent LCD text: {lcd_msg}")
+
+            if command_counter % 10 == 0:
+                colors = ["red", "green", "blue"]
+                color = colors[(command_counter // 10) % len(colors)]
+                comm.send_command(led_color=color)
+                print(f"Sent LED color: {color}")
+
+            if command_counter % 15 == 0:
+                comm.send_command(
+                    left_rpm=50,
+                    right_rpm=50,
+                    lcd_text="Controlled speed",
+                    led_color="red"
+                )
+                print("send all commands for test")
+
 
     except KeyboardInterrupt:
         print("\nShutting down...")
