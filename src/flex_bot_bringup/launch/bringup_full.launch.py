@@ -30,14 +30,14 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "slam_async.launch.py"))
     )
 
-    rviz = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="screen",
-        arguments=["-d", rviz_config],
-        condition=IfCondition(use_rviz),
-    )
+    # rviz = Node(
+    #     package="rviz2",
+    #     executable="rviz2",
+    #     name="rviz2",
+    #     output="screen",
+    #     arguments=["-d", rviz_config],
+    #     condition=IfCondition(use_rviz),
+    # )
 
     return LaunchDescription([
         DeclareLaunchArgument("use_rviz", default_value="true"),
@@ -45,5 +45,5 @@ def generate_launch_description():
         static_tfs,
         ekf,
         slam,
-        rviz,
+        # rviz,
     ])
