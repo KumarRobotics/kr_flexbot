@@ -2089,7 +2089,14 @@ LEDs are controlled through **Linux sysfs**, not UART/I²C/CAN.
 - Green → `/sys/class/leds/green:status/brightness`
 - Blue → `/sys/class/leds/blue:status/brightness`
 
-# LiDAR Forwarding – Quick Start
+### Brightness Values
+
+- `0` → OFF
+- `255` → ON (full brightness)
+
+---
+
+# LiDAR Forwarding
 
 These are the commands used to bring up networking and UDP forwarding between the IMX7 and the Jetson.
 
@@ -2120,12 +2127,6 @@ ping -c 3 192.168.0.20
 2. Jetson: jetson_eth0_v2.sh
 3. Verify ping
 4. IMX7: imx7_forward_v2.sh
-
-
-### Brightness Values
-
-- `0` → OFF
-- `255` → ON (full brightness)
 
 ---
 
