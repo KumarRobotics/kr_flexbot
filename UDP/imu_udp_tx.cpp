@@ -17,7 +17,7 @@
 static constexpr const char* PORT = "/dev/ttymxc4";
 static constexpr int BAUD = 115200;
 
-static constexpr const char* DEST_IP = "192.168.10.20";
+static constexpr const char* DEST_IP = "192.168.0.20";
 static constexpr int DEST_PORT = 5005;
 
 // ---------------- Serial helpers ----------------
