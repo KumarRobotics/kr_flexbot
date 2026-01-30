@@ -2089,6 +2089,39 @@ LEDs are controlled through **Linux sysfs**, not UART/I²C/CAN.
 - Green → `/sys/class/leds/green:status/brightness`
 - Blue → `/sys/class/leds/blue:status/brightness`
 
+# LiDAR Forwarding – Quick Start
+
+These are the commands used to bring up networking and UDP forwarding between the IMX7 and the Jetson.
+
+## IMX7: Bridge + UDP Forwarding
+
+### Make scripts executable
+chmod +x ./imx_to_jetson_forward/imx7_bridge_v2.sh ./imx_to_jetson_forward/imx7_forward_v2.sh
+
+### Configure Ethernet bridge
+sudo ./imx_to_jetson_forward/imx7_bridge_v2.sh
+
+### Start UDP forwarding
+sudo ./imx_to_jetson_forward/imx7_forward_v2.sh
+
+## Jetson: Ethernet Setup
+
+### Make scripts executable
+chmod +x ./imx_to_jetson_forward/jetson_eth_v2.sh
+
+### Configure Ethernet IP
+sudo ./imx_to_jetson_forward/jetson_eth_v2.sh
+
+### Connectivity test
+ping -c 3 192.168.0.20
+
+## Execution Order
+1. IMX7: imx7_bridge_v2.sh
+2. Jetson: jetson_eth0_v2.sh
+3. Verify ping
+4. IMX7: imx7_forward_v2.sh
+
+
 ### Brightness Values
 
 - `0` → OFF
