@@ -1,0 +1,23 @@
+teleop_node:
+  ros__parameters:
+    device: "/dev/input/js0"
+
+    axis_ly: 1
+    axis_rx: 3
+    axis_lt: 2
+    axis_rt: 5
+
+    invert_ly: true
+    invert_rx: false
+    invert_lt: false
+    invert_rt: false
+
+    deadman_button: -1
+    deadband: 0.08
+    mix_scale: 0.8
+    max_rpm_cmd: 30.0
+    turret_max_rad_s: 2.0
+
+    publish_rate_hz: 100.0
+    stale_timeout_s: 100.0
+    ema_tau_s: 0.05

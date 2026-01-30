@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>flex_bot_teleop</name>
+  <version>0.0.1</version>
+  <description>FlexBot teleop + UDP bridge for iMX7 low-level controller</description>
+
+  <maintainer email="kvirmani@seas.upenn.edu">Kartik</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
