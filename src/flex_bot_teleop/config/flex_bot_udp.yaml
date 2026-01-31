@@ -10,3 +10,7 @@ flex_bot_udp_bridge:
 
     # convenience output
     publish_feedback_radps: true
+
+    imu_port: 5005
+    imu_frame_id: "xsens_imu"
+    imu_rpy_in_degrees: false

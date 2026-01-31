@@ -15,7 +15,7 @@ teleop_node:
     deadman_button: -1
     deadband: 0.08
     mix_scale: 0.8
-    max_rpm_cmd: 30.0
+    max_rpm_cmd: 20.0
     turret_max_rad_s: 2.0
 
     publish_rate_hz: 100.0
