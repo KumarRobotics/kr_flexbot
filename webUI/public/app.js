@@ -1,21 +1,22 @@
 /**
- * Libot Interface - Main Application
+ * Libot Robot Interface - Main Application
  * Integrates face detection with UI screens
  */
 
-// ======================================
+// ============================================================================
 // CONFIGURATIONS
+// ============================================================================
 
 // Inactivity Timeouts (in milliseconds)
-const INACTIVITY_TIMEOUT = 30000; // 30 seconds - Return to home after no clicks/touches
-const NO_FACE_TIMEOUT = 15000;    // 15 seconds - Return to home when face not detected
+const INACTIVITY_TIMEOUT = 180000; // 30 seconds - Return to home after no clicks/touches
+const NO_FACE_TIMEOUT = 180000;    // 180 seconds - Return to home when face not detected
 
 // Face Detection Settings
 const FACE_DETECTION_CONFIG = {
-  minDetectionConfidence: 0.8,    // Minimum confidence for face detection (0-1)
-  gazeThreshold: 0.25,             // How centered the face needs to be (0-1, higher = stricter)
-  requiredGazeDuration: 2000,     // Time in ms person must look before engaging (2 seconds)
-  faceSizeThreshold: 0.12,        // Minimum face size to prevent distant detections (0-1)
+  minDetectionConfidence: 0.7,    // Minimum confidence for face detection (0-1)
+  gazeThreshold: 0.4,             // How centered the face needs to be (0-1, higher = stricter)
+  requiredGazeDuration: 500,     // Time in ms person must look before engaging (2 seconds)
+  faceSizeThreshold: 0.3,        // Minimum face size to prevent distant detections (0-1)
   detectionInterval: 100,         // Time between detection checks in ms
 };
 
@@ -34,6 +35,9 @@ let faceDetector = null;
 let video = null;
 let overlayCanvas = null;
 let overlayContext = null;
+
+// Book Returns
+let bookReturnsManager = null;
 
 // DOM Elements
 const elements = {
@@ -67,6 +71,9 @@ async function init() {
   
   // Initialize face detection
   await initializeFaceDetection();
+  
+  // Initialize book returns manager
+  initializeBookReturns();
 }
 
 /**
@@ -421,6 +428,254 @@ function handleUserEngaged(data) {
 }
 
 /**
+ * Initialize book returns system
+ */
+function initializeBookReturns() {
+  // Inline BookReturnsManager class
+  class BookReturnsManager {
+    constructor(config = {}) {
+      this.config = {
+        maxBooksBeforeSort: config.maxBooksBeforeSort || 10,
+        scanTimeout: config.scanTimeout || 30000,
+      };
+      
+      this.state = {
+        scannedBooks: [],
+        totalBooksScanned: 0,
+        totalBooksPlaced: 0,
+        currentBook: null,
+        isScanning: false,
+      };
+      
+      this.onBookScanned = null;
+      this.onBookPlaced = null;
+      this.onThresholdReached = null;
+    }
+    
+    startReturn() {
+      this.state.isScanning = true;
+      this.state.currentBook = null;
+      console.log('Book return process started');
+    }
+    
+    handleScan(barcode) {
+      if (!this.state.isScanning) return null;
+      
+      const slot = this.assignSlot(barcode);
+      const book = {
+        barcode: barcode,
+        slot: slot,
+        scannedAt: new Date().toISOString(),
+        placed: false,
+      };
+      
+      this.state.currentBook = book;
+      this.state.scannedBooks.push(book);
+      this.state.totalBooksScanned++;
+      
+      console.log(`Book scanned: ${barcode} -> Slot ${slot}`);
+      
+      if (this.onBookScanned) {
+        this.onBookScanned(book);
+      }
+      
+      return book;
+    }
+    
+    assignSlot(barcode) {
+      const rows = ['A', 'B', 'C', 'D', 'E'];
+      const columns = 10;
+      const hash = barcode.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const row = rows[hash % rows.length];
+      const col = (hash % columns) + 1;
+      return `${row}${col}`;
+    }
+    
+    markBookPlaced() {
+      if (!this.state.currentBook) return;
+      
+      this.state.currentBook.placed = true;
+      this.state.currentBook.placedAt = new Date().toISOString();
+      this.state.totalBooksPlaced++;
+      
+      console.log(`Book placed in slot ${this.state.currentBook.slot}`);
+      
+      if (this.onBookPlaced) {
+        this.onBookPlaced(this.state.currentBook);
+      }
+      
+      if (this.state.totalBooksPlaced >= this.config.maxBooksBeforeSort) {
+        this.handleThresholdReached();
+      }
+      
+      this.state.currentBook = null;
+    }
+    
+    handleThresholdReached() {
+      console.log(`Threshold reached: ${this.state.totalBooksPlaced} books placed`);
+      
+      if (this.onThresholdReached) {
+        this.onThresholdReached({
+          totalBooks: this.state.totalBooksPlaced,
+          books: this.state.scannedBooks.filter(b => b.placed)
+        });
+      }
+      
+      this.triggerSortingProcess();
+    }
+    
+    triggerSortingProcess() {
+      console.log('═══════════════════════════════════════');
+      console.log('🤖 SORTING PROCESS TRIGGERED');
+      console.log(`📚 Processing ${this.state.totalBooksPlaced} books...`);
+      console.log('═══════════════════════════════════════');
+      
+      // Show alert to user
+      alert(`Sorting process triggered!\n\n${this.state.totalBooksPlaced} books will now be processed and sorted.\n\nCounter will reset after sorting completes.`);
+      
+      // TODO: Trigger process to have robot book next to the shelf
+      // - Send data to backend API
+      // - Trigger robot/conveyor system
+      // - Update database
+      
+      // Reset counter ONLY after sorting is triggered
+      this.resetAfterSort();
+      
+      console.log('✅ Counter reset - ready for next batch of books');
+    }
+    
+    resetAfterSort() {
+      // Only reset the books that have been placed
+      // Keep the scanned books list for ongoing session tracking if needed
+      this.state.scannedBooks = this.state.scannedBooks.filter(b => !b.placed);
+      // this.state.scannedBooks = 0;
+      this.state.totalBooksPlaced = 0;
+      console.log('Placed books counter reset after sorting - ready for next batch');
+    }
+    
+    getStats() {
+      return {
+        totalScanned: this.state.totalBooksScanned,
+        totalPlaced: this.state.totalBooksPlaced,
+        currentBook: this.state.currentBook,
+        isScanning: this.state.isScanning,
+      };
+    }
+    
+    reset() {
+      this.state = {
+        scannedBooks: [],
+        totalBooksScanned: 0,
+        totalBooksPlaced: 0,
+        currentBook: null,
+        isScanning: false,
+      };
+    }
+  }
+  
+  // Create instance
+  bookReturnsManager = new BookReturnsManager({
+    maxBooksBeforeSort: 10, // Trigger sorting after 10 books
+  });
+  
+
+  // Expected Behavior for scanning:
+  //  Book counters persist across multiple users
+  // - User A returns 3 books → counter = 3
+  // - User A leaves
+  // - User B returns 4 books → counter = 7
+  // - User B leaves  
+  // - User C returns 3 books → counter = 10 → SORTING TRIGGERED → counter resets to 0
+  
+  // Set up callbacks
+  bookReturnsManager.onBookScanned = (book) => {
+    updateScanStats();
+    showPlacementScreen(book.slot);
+  };
+  
+  bookReturnsManager.onBookPlaced = (book) => {
+    updateScanStats();
+    // Return to scan screen for next book
+    setTimeout(() => {
+      switchScreen('bookReturnsScanScreen');
+    }, 1500);
+  };
+  
+  bookReturnsManager.onThresholdReached = (data) => {
+    console.log('Threshold reached callback:', data);
+  };
+  
+  console.log('Book returns system initialized');
+}
+
+/**
+ * Book Returns Functions
+ */
+function startBookReturns() {
+  // Don't reset counters - they persist across users until threshold
+  // Just start a new scanning session
+  bookReturnsManager.startReturn();
+  updateScanStats();
+  switchScreen('bookReturnsScanScreen');
+  resetInactivityTimer();
+}
+
+function simulateScan() {
+  // Generate random barcode
+  const barcode = 'BOOK' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  bookReturnsManager.handleScan(barcode);
+  resetInactivityTimer();
+}
+
+function markBookPlaced() {
+  bookReturnsManager.markBookPlaced();
+  resetInactivityTimer();
+}
+
+function showPlacementScreen(slot) {
+  document.getElementById('assignedSlot').textContent = slot;
+  updateScanStats();
+  switchScreen('bookReturnsPlaceScreen');
+}
+
+function updateScanStats() {
+  const stats = bookReturnsManager.getStats();
+  const maxBooks = bookReturnsManager.config.maxBooksBeforeSort;
+  const remaining = maxBooks - stats.totalPlaced;
+  const progress = (stats.totalPlaced / maxBooks) * 100;
+  
+  // Update scan screen stats
+  const scannedCount = document.getElementById('scannedCount');
+  const placedCount = document.getElementById('placedCount');
+  const remainingCount = document.getElementById('remainingCount');
+  const thresholdFill = document.getElementById('thresholdFill');
+  
+  if (scannedCount) scannedCount.textContent = stats.totalScanned;
+  if (placedCount) placedCount.textContent = stats.totalPlaced;
+  if (remainingCount) remainingCount.textContent = remaining;
+  if (thresholdFill) thresholdFill.style.width = progress + '%';
+  
+  // Update placement screen stats
+  const scannedCountPlace = document.getElementById('scannedCountPlace');
+  const placedCountPlace = document.getElementById('placedCountPlace');
+  const remainingCountPlace = document.getElementById('remainingCountPlace');
+  const thresholdFillPlace = document.getElementById('thresholdFillPlace');
+  
+  if (scannedCountPlace) scannedCountPlace.textContent = stats.totalScanned;
+  if (placedCountPlace) placedCountPlace.textContent = stats.totalPlaced;
+  if (remainingCountPlace) remainingCountPlace.textContent = remaining;
+  if (thresholdFillPlace) thresholdFillPlace.style.width = progress + '%';
+}
+
+function exitBookReturns() {
+  // Don't reset - keep counter running until threshold is reached
+  // Just clear the current scanning session
+  bookReturnsManager.state.isScanning = false;
+  bookReturnsManager.state.currentBook = null;
+  returnToDefault();
+}
+
+/**
  * Reset inactivity timer (called on any user interaction)
  */
 function resetInactivityTimer() {
@@ -536,15 +791,21 @@ function handleSelection(option) {
   // Reset inactivity timer on interaction
   resetInactivityTimer();
   
-  // TODO: Actual functionaity pending options
-  alert(`You selected: ${option}\n\n TODO: next steps`);
+  // Route to appropriate feature
+  if (option === 'Book Returns') {
+    startBookReturns();
+  } else {
+    // Other features - implement as needed
+    alert(`You selected: ${option}\n\nThis would connect to the ${option.toLowerCase()} system.`);
+  }
 }
 
 /**
  * Utility functions
  */
 function playWelcomeSound() {
-  // TODO: Implement audio playback
+  // Implement audio playback here
+  // Example:
   // const audio = new Audio('sounds/welcome.mp3');
   // audio.play();
   console.log('Playing welcome sound...');

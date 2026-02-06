@@ -614,6 +614,357 @@
         .menu-item:nth-child(3) { animation: fadeInUp 0.6s ease 0.2s both; }
         .menu-item:nth-child(4) { animation: fadeInUp 0.6s ease 0.25s both; }
 
+        /* Book Returns Screens */
+        .book-returns-content {
+            text-align: center;
+            max-width: 900px;
+            padding: 40px;
+        }
+
+        .book-returns-title {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 30px;
+            animation: fadeInUp 0.6s ease both;
+        }
+
+        .book-returns-instruction {
+            font-size: 1.5rem;
+            color: var(--text-dark);
+            margin-bottom: 40px;
+            font-weight: 500;
+            animation: fadeInUp 0.6s ease 0.1s both;
+        }
+
+        /* Scanner indicator with animated arrow */
+        .scanner-indicator {
+            position: fixed;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            animation: fadeInLeft 0.8s ease 0.3s both;
+        }
+
+        @keyframes fadeInLeft {
+            from {
+                opacity: 0;
+                transform: translate(-30px, -50%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(0, -50%);
+            }
+        }
+
+        .arrow-container {
+            position: relative;
+            width: 150px;
+            height: 60px;
+            margin-bottom: 15px;
+        }
+
+        .arrow-line {
+            position: absolute;
+            width: 120px;
+            height: 6px;
+            background: linear-gradient(90deg, var(--secondary), var(--accent));
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            border-radius: 3px;
+            box-shadow: 0 0 20px var(--secondary);
+        }
+
+        .arrow-head {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-top: 20px solid transparent;
+            border-bottom: 20px solid transparent;
+            border-right: 30px solid var(--accent);
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            filter: drop-shadow(0 0 15px var(--accent));
+            animation: arrowPoint 1.5s ease-in-out infinite;
+        }
+
+        @keyframes arrowPoint {
+            0%, 100% { left: 0; opacity: 1; }
+            50% { left: -15px; opacity: 0.7; }
+        }
+
+        .arrow-pulse {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: var(--secondary);
+            border-radius: 50%;
+            left: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.6;
+            animation: pulse-ring 2s ease-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: translateY(-50%) scale(0.8);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(-50%) scale(2);
+                opacity: 0;
+            }
+        }
+
+        .scanner-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--secondary);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Scan status display */
+        .scan-status {
+            background: white;
+            border: 4px solid var(--primary);
+            border-radius: 20px;
+            padding: 40px;
+            margin: 40px auto;
+            max-width: 500px;
+            box-shadow: 0 10px 30px var(--shadow);
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .scan-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .scan-message {
+            font-size: 1.4rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        /* Statistics display */
+        .scan-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin: 40px 0;
+            animation: fadeInUp 0.6s ease 0.3s both;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, var(--primary), #3D7FA0);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px var(--shadow);
+        }
+
+        .stat-number {
+            font-size: 4rem;
+            font-weight: 700;
+            color: white;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.9);
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        /* Slot display */
+        .slot-display {
+            background: linear-gradient(135deg, var(--accent), var(--secondary));
+            padding: 60px;
+            border-radius: 30px;
+            margin: 40px auto;
+            max-width: 600px;
+            box-shadow: 
+                0 20px 60px rgba(232, 196, 104, 0.4),
+                inset 0 -5px 20px rgba(0,0,0,0.1);
+            animation: scaleIn 0.8s ease both;
+        }
+
+        .slot-label {
+            font-size: 1.8rem;
+            color: var(--text-dark);
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .slot-number {
+            font-size: 8rem;
+            font-weight: 700;
+            color: white;
+            font-family: 'Space Mono', monospace;
+            text-shadow: 
+                0 5px 20px rgba(0,0,0,0.3),
+                0 0 40px var(--primary);
+            animation: slotPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes slotPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .slot-visual {
+            margin: 40px 0;
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .placement-instruction {
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            margin: 30px 0;
+            font-weight: 500;
+            animation: fadeInUp 0.6s ease 0.3s both;
+        }
+
+        /* Action buttons */
+        .btn-action {
+            font-family: 'Space Mono', monospace;
+            background: linear-gradient(135deg, var(--secondary), #FF8F5E);
+            color: var(--text-light);
+            border: none;
+            padding: 20px 50px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(247, 160, 114, 0.3);
+            transition: all 0.3s ease;
+            margin: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            animation: fadeInUp 0.6s ease 0.4s both;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(247, 160, 114, 0.4);
+        }
+
+        .btn-action:active {
+            transform: translateY(-2px);
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-scan:hover {
+            box-shadow: 0 15px 40px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-done {
+            background: linear-gradient(135deg, var(--primary), #3D7FA0);
+            box-shadow: 0 10px 30px var(--shadow);
+        }
+
+        .btn-done:hover {
+            box-shadow: 0 15px 40px var(--shadow);
+        }
+
+        .btn-secondary {
+            font-family: 'Space Mono', monospace;
+            background: transparent;
+            color: var(--text-dark);
+            border: 3px solid var(--text-dark);
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: fadeInUp 0.6s ease 0.5s both;
+        }
+
+        .btn-secondary:hover {
+            background: var(--text-dark);
+            color: white;
+            transform: translateY(-3px);
+        }
+
+
+        /* Threshold progress indicator */
+        .threshold-progress {
+            margin: 30px auto;
+            max-width: 600px;
+            animation: fadeInUp 0.6s ease 0.4s both;
+        }
+
+        .threshold-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 15px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .threshold-label span {
+            color: var(--secondary);
+            font-size: 1.5rem;
+        }
+
+        .threshold-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            border: 2px solid var(--primary);
+        }
+
+        .threshold-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 15px;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            position: relative;
+        }
+
+        .threshold-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+
+
         /* Won't be needed but just incase */
         @media (max-width: 768px) {
             
@@ -722,6 +1073,105 @@
                 <div class="thankyou-icon">🌟</div>
                 <h1 class="thankyou-title">Thank You!</h1>
                 <p class="thankyou-subtitle">Have a great day!</p>
+            </div>
+        </div>
+
+        <!-- Book Returns - Scanning Screen -->
+        <div class="screen" id="bookReturnsScanScreen">
+            <div class="book-returns-content">
+                <h2 class="book-returns-title">📚 Book Returns</h2>
+                <p class="book-returns-instruction">Please scan your book using the barcode scanner</p>
+                
+                <!-- Arrow pointing to scanner -->
+                <div class="scanner-indicator">
+                    <div class="arrow-container">
+                        <div class="arrow-line"></div>
+                        <div class="arrow-head"></div>
+                        <div class="arrow-pulse"></div>
+                    </div>
+                    <div class="scanner-label">Barcode Scanner</div>
+                </div>
+                
+                <!-- Scanning status -->
+                <div class="scan-status">
+                    <div class="scan-icon">📖</div>
+                    <p class="scan-message">Waiting for scan...</p>
+                </div>
+                
+                <!-- Statistics -->
+                <div class="scan-stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="scannedCount">0</div>
+                        <div class="stat-label">Books Scanned</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="placedCount">0</div>
+                        <div class="stat-label">Books Placed</div>
+                    </div>
+                </div>
+                
+                <!-- Progress to threshold -->
+                <div class="threshold-progress">
+                    <div class="threshold-label">
+                        <span id="remainingCount">10</span> books until sorting
+                    </div>
+                    <div class="threshold-bar">
+                        <div class="threshold-fill" id="thresholdFill"></div>
+                    </div>
+                </div>
+                
+                <button class="btn-action btn-scan" onclick="simulateScan()">Simulate Scan</button>
+                <button class="btn-secondary" onclick="exitBookReturns()">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Book Returns - Placement Screen -->
+        <div class="screen" id="bookReturnsPlaceScreen">
+            <div class="book-returns-content">
+                <h2 class="book-returns-title">📚 Book Returns</h2>
+                
+                <!-- Slot assignment display -->
+                <div class="slot-display">
+                    <div class="slot-label">Place book in slot:</div>
+                    <div class="slot-number" id="assignedSlot">A5</div>
+                </div>
+                
+                <!-- Visual slot indicator -->
+                <div class="slot-visual">
+                    <div class="slot-grid">
+                        <!-- This will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <!-- Instructions -->
+                <p class="placement-instruction">
+                    Place the book in the highlighted slot, then tap "Done" below
+                </p>
+                
+                <!-- Statistics -->
+                <div class="scan-stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="scannedCountPlace">0</div>
+                        <div class="stat-label">Books Scanned</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="placedCountPlace">0</div>
+                        <div class="stat-label">Books Placed</div>
+                    </div>
+                </div>
+                
+                <!-- Progress to threshold -->
+                <div class="threshold-progress">
+                    <div class="threshold-label">
+                        <span id="remainingCountPlace">10</span> books until sorting
+                    </div>
+                    <div class="threshold-bar">
+                        <div class="threshold-fill" id="thresholdFillPlace"></div>
+                    </div>
+                </div>
+                
+                <button class="btn-action btn-done" onclick="markBookPlaced()">Done - Book Placed</button>
+                <button class="btn-secondary" onclick="exitBookReturns()">Cancel</button>
             </div>
         </div>
     </div>
