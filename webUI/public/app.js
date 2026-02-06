@@ -16,7 +16,7 @@ const FACE_DETECTION_CONFIG = {
   minDetectionConfidence: 0.7,    // Minimum confidence for face detection (0-1)
   gazeThreshold: 0.4,             // How centered the face needs to be (0-1, higher = stricter)
   requiredGazeDuration: 500,     // Time in ms person must look before engaging (2 seconds)
-  faceSizeThreshold: 0.3,        // Minimum face size to prevent distant detections (0-1)
+  faceSizeThreshold: 0.12,        // Minimum face size to prevent distant detections (0-1)
   detectionInterval: 100,         // Time between detection checks in ms
 };
 
@@ -524,25 +524,51 @@ function initializeBookReturns() {
       this.triggerSortingProcess();
     }
     
-    triggerSortingProcess() {
-      console.log('═══════════════════════════════════════');
-      console.log('🤖 SORTING PROCESS TRIGGERED');
-      console.log(`📚 Processing ${this.state.totalBooksPlaced} books...`);
-      console.log('═══════════════════════════════════════');
+    // triggerSortingProcess() {
+    //   console.log('═══════════════════════════════════════');
+    //   console.log('🤖 SORTING PROCESS TRIGGERED');
+    //   console.log(`📚 Processing ${this.state.totalBooksPlaced} books...`);
+    //   console.log('═══════════════════════════════════════');
       
-      // Show alert to user
-      alert(`Sorting process triggered!\n\n${this.state.totalBooksPlaced} books will now be processed and sorted.\n\nCounter will reset after sorting completes.`);
+    //   // Show alert to user
+    //   alert(`Sorting process triggered!\n\n${this.state.totalBooksPlaced} books will now be processed and sorted.\n\nCounter will reset after sorting completes.`);
+
+    //   // will need to create a database of books
+    //   // Book Title | Library Congress Code | Available | On Shelf
       
-      // TODO: Trigger process to have robot book next to the shelf
-      // - Send data to backend API
-      // - Trigger robot/conveyor system
-      // - Update database
+    //   // TODO: Trigger process to have robot book next to the shelf
+    //   // - Send data to backend API
+    //   // - Trigger robot/conveyor system
+    //   // - Update database
       
-      // Reset counter ONLY after sorting is triggered
+    //   // Reset counter ONLY after sorting is triggered
+    //   this.resetAfterSort();
+      
+    //   console.log('✅ Counter reset - ready for next batch of books');
+    // }
+    async triggerSortingProcess() {
+      // Call ROS bridge first
+      const res = await fetch("http://localhost:8080/trigger_sort", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          reason: "batch_ready",
+          batch_id: "batch-001",
+          count: this.counter
+        })
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("Failed to trigger ROS sorting:", data);
+        return; // don’t reset if ROS didn't accept it
+      }
+
+      // Reset ONLY after successful trigger
       this.resetAfterSort();
-      
-      console.log('✅ Counter reset - ready for next batch of books');
+      console.log("Counter reset - ready for next batch of books");
     }
+
     
     resetAfterSort() {
       // Only reset the books that have been placed
@@ -612,8 +638,15 @@ function initializeBookReturns() {
  * Book Returns Functions
  */
 function startBookReturns() {
-  // Don't reset counters - they persist across users until threshold
-  // Just start a new scanning session
+  // total placed books persist until threshold
+  // Reset scanned count for new user session
+
+
+  bookReturnsManager.state.totalBooksScanned = 0;
+  bookReturnsManager.state.scannedBooks = bookReturnsManager.state.scannedBooks.filter(b => b.placed);
+
+
+  // Start new scanning session
   bookReturnsManager.startReturn();
   updateScanStats();
   switchScreen('bookReturnsScanScreen');
@@ -670,8 +703,23 @@ function updateScanStats() {
 function exitBookReturns() {
   // Don't reset - keep counter running until threshold is reached
   // Just clear the current scanning session
-  bookReturnsManager.state.isScanning = false;
-  bookReturnsManager.state.currentBook = null;
+  // bookReturnsManager.state.isScanning = false;
+  // bookReturnsManager.state.currentBook = null;
+
+
+  if (currentScreen == 'bookReturnsScanScreen' || currentScreen == 'bookReturnsPlaceScreen'){
+    bookReturnsManager.state.totalBooksScanned = 0;
+    bookReturnsManager.state.scannedBooks = bookReturnsManager.state.scannedBooks.filter(b => b.placed);
+    bookReturnsManager.state.isScanning = false;
+    bookReturnsManager.state.currentBook = null;
+    console.log('Book returns sessions ended - scanned count rese')
+  }
+
+
+
+
+
+
   returnToDefault();
 }
 
