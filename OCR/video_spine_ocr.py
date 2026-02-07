@@ -9,7 +9,7 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 
 # Configuration
-VIDEO_PATH = "shelf_video_1.MOV"  
+VIDEO_PATH = "shelf_video_2.MOV"  
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_JSON = os.path.join(BASE_DIR,"shelf_viewer", "shelf_order.json")
 UPDATE_INTERVAL = 1.0  # Update JSON every 1 second
