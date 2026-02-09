@@ -35,7 +35,7 @@
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 static constexpr const char*  CAN_INTERFACE       = "can0";
-static constexpr double       CMD_PER_WHEEL_RPM   = 3814.0;
+static constexpr double       CMD_PER_WHEEL_RPM   = 4145.0;
 static constexpr uint16_t     UDP_LISTEN_PORT     = 5001;
 static constexpr const char*  UDP_SEND_IP         = "192.168.0.20";  // Jetson IP
 static constexpr uint16_t     UDP_SEND_PORT       = 5002;

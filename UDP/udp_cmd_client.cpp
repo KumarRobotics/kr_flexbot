@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
-static constexpr const char* IMX7_IP = "192.168.10.2";
+static constexpr const char* IMX7_IP = "192.168.0.2";
 static constexpr int IMX7_PORT = 5006;
 
 static uint32_t crc32(const uint8_t* data, size_t len) {
