@@ -273,8 +273,8 @@ static void udp_receiver_thread() {
 
             {
                 std::lock_guard<std::mutex> lock(g_cmd_mutex);
-                g_cmd.left_rpm  = left_rpm;
-                g_cmd.right_rpm = right_rpm;
+                g_cmd.left_rpm  = left_rpm * -1.0f;   // Invert left wheel if needed
+                g_cmd.right_rpm = right_rpm * 1.0f;  // Invert right wheel if needed
             }
 
             printf("[UDP RX] L=%.1f R=%.1f RPM\n", left_rpm, right_rpm);

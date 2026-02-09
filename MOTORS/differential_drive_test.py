@@ -8,7 +8,7 @@ import time
 
 bus = can.Bus(channel='can0', interface='socketcan')
 
-CMD_PER_WHEEL_RPM = 3814.0
+CMD_PER_WHEEL_RPM = 4145.0 # Tune as needed for your specific motors and gearing to achieve desired RPM range
 
 def send_cmd_motor(node, ctrl, vel=0):
     """Send RPDO command + SYNC to specific motor"""

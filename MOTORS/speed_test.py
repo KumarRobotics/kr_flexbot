@@ -7,7 +7,7 @@ INTERFACE="socketcan"
 # If None: auto-detect by SDO ping scan 1..10
 NODE = 2
 
-CMD_PER_WHEEL_RPM = 3814.0
+CMD_PER_WHEEL_RPM = 4145.0 # Tune as needed for your specific motors and gearing to achieve desired RPM range
 TARGET_WHEEL_RPM = 10.0
 HOLD_SEC = 5.0
 
