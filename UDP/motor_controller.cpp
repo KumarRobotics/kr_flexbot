@@ -35,13 +35,16 @@
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 static constexpr const char*  CAN_INTERFACE       = "can0";
-static constexpr double       CMD_PER_WHEEL_RPM   = 4145.0;
+static constexpr double       CMD_PER_WHEEL_RPM   = 4145.0; // Tune as needed for your specific motors and gearing to achieve desired RPM range
 static constexpr uint16_t     UDP_LISTEN_PORT     = 5001;
 static constexpr const char*  UDP_SEND_IP         = "192.168.0.20";  // Jetson IP
 static constexpr uint16_t     UDP_SEND_PORT       = 5002;
 static constexpr int          CONTROL_RATE_HZ     = 50;   // 50Hz motor control
 static constexpr int          ENCODER_RATE_HZ     = 20;   // 20Hz encoder feedback
 static constexpr double       ENCODER_SDO_TIMEOUT = 0.05; // 50ms SDO timeout
+static constexpr double       ENC_COUNTS_PER_REV  = 4096.0;
+static constexpr double       MAX_RPM_FEEDBACK    = 500.0;   // clamp for sanity
+
 
 // ─── CAN IDs ─────────────────────────────────────────────────────────────────
 
@@ -204,6 +207,60 @@ static bool read_encoder(uint8_t node, int32_t& out_counts) {
     return false;  // timeout
 }
 
+
+/**
+ * Read encoder velocity (0x606C) from a motor node via SDO.
+ * Returns true if successful and writes velocity to `out_vel`.
+ */
+
+static bool sdo_read_i32(uint8_t node, uint16_t index, uint8_t subidx, int32_t& out_val) {
+    uint8_t req[8] = {
+        0x40,
+        (uint8_t)(index & 0xFF),
+        (uint8_t)(index >> 8),
+        subidx,
+        0,0,0,0
+    };
+
+    const uint32_t resp_id = SDO_RESP + node;
+    g_can.send(SDO_REQ + node, req, 8);
+
+    auto deadline = std::chrono::steady_clock::now()
+        + std::chrono::milliseconds((int)(ENCODER_SDO_TIMEOUT * 1000));
+
+    struct can_frame frame;
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (g_can.recv(frame)) {
+            if (frame.can_id != resp_id || frame.can_dlc < 8) continue;
+
+            // Verify it's the response to the same index/subindex
+            if (frame.data[1] != (index & 0xFF) ||
+                frame.data[2] != (index >> 8) ||
+                frame.data[3] != subidx) {
+                continue;
+            }
+
+            // Abort?
+            if (frame.data[0] == 0x80) return false;
+
+            // For expedited i32 reads, value is in bytes 4..7
+            std::memcpy(&out_val, &frame.data[4], 4);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool read_encoder(uint8_t node, int32_t& out_counts) {
+    return sdo_read_i32(node, OBJ_POSITION_ACTUAL, 0x00, out_counts);
+}
+static bool read_velocity_actual(uint8_t node, int32_t& out_vel) {
+    return sdo_read_i32(node, OBJ_VELOCITY_ACTUAL, 0x00, out_vel);
+}
+
+/// TODO: send data on packets over UDP
+
+
 // ─── Emergency Stop ──────────────────────────────────────────────────────────
 
 static void emergency_stop() {
@@ -323,7 +380,7 @@ static void motor_control_thread() {
 /**
  * Runs at ENCODER_RATE_HZ (20Hz).
  * Reads encoder positions via SDO and sends them back via UDP.
- * Payload: [left_enc (i32)][right_enc (i32)][timestamp (f64)] = 16 bytes
+ * Payload: [left_enc (float)][right_enc (float)][timestamp (f64)] = 16 bytes
  */
 
 static void encoder_feedback_thread() {
@@ -346,6 +403,10 @@ static void encoder_feedback_thread() {
     auto next     = std::chrono::steady_clock::now() + interval;
     int  tick     = 0;
 
+    bool have_prev = false;
+    int32_t prev_left = 0, prev_right = 0;
+    double  prev_ts = 0.0;
+
     while (g_running.load()) {
         int32_t left_enc  = 0;
         int32_t right_enc = 0;
@@ -356,18 +417,42 @@ static void encoder_feedback_thread() {
         if (left_ok && right_ok) {
             double ts = get_timestamp();
 
+            float left_rpm_f = 0.0f;
+            float right_rpm_f = 0.0f;
+
+            if (have_prev) {
+                double dt = ts - prev_ts;
+                if (dt > 0) {
+                    int32_t left_delta  = left_enc - prev_left;
+                    int32_t right_delta = right_enc - prev_right;
+
+                    left_rpm_f  = (float)(( (double)left_delta  / (double)ENC_COUNTS_PER_REV) * 60.0 / dt);
+                    right_rpm_f = (float)(( (double)right_delta / (double)ENC_COUNTS_PER_REV) * 60.0 / dt);
+
+                    // Clamp for sanity
+                    if (std::abs(left_rpm_f) > MAX_RPM_FEEDBACK) left_rpm_f = 0.0f;
+                    if (std::abs(right_rpm_f) > MAX_RPM_FEEDBACK) right_rpm_f = 0.0f;
+                }
+            }
+
             // Pack: [i32][i32][f64] = 16 bytes
             uint8_t buf[16];
-            memcpy(buf + 0, &left_enc,  4);
-            memcpy(buf + 4, &right_enc, 4);
+            memcpy(buf + 0, &left_rpm_f,  4);
+            memcpy(buf + 4, &right_rpm_f, 4);
             memcpy(buf + 8, &ts,        8);
 
             sendto(sock, buf, 16, 0,
                    (struct sockaddr*)&dest, sizeof(dest));
 
             // Print every 0.5s
-            if (++tick % (ENCODER_RATE_HZ / 2) == 0)
-                printf("[ENC] L=%d R=%d\n", left_enc, right_enc);
+            if (++tick % (ENCODER_RATE_HZ / 2) == 0) {
+                printf("[RPM] L=%.2f R=%.2f (enc L=%d R=%d)\n",
+                       left_rpm_f, right_rpm_f, left_enc, right_enc);
+            }
+            prev_left = left_enc;
+            prev_right = right_enc;
+            prev_ts = ts;
+            have_prev = true;
         }
 
         next += interval;
