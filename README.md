@@ -137,12 +137,12 @@ Displays to add
 
         Topic: /scan_fullframe
 ## UI & Backend
-# You can start the backend process that spawns other ros2 processes by running
+You can start the backend process that spawns other ros2 processes by running
 ```bash
 ros2 run sorting_trigger_bridge bridge
 ```
 
-# you can launch the webUI by running
+you can launch the webUI by running
 ```bash
 cd ./additional/webUI
 npm start 
