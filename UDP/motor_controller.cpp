@@ -213,43 +213,43 @@ static bool read_encoder(uint8_t node, int32_t& out_counts) {
  * Returns true if successful and writes velocity to `out_vel`.
  */
 
-static bool sdo_read_i32(uint8_t node, uint16_t index, uint8_t subidx, int32_t& out_val) {
-    uint8_t req[8] = {
-        0x40,
-        (uint8_t)(index & 0xFF),
-        (uint8_t)(index >> 8),
-        subidx,
-        0,0,0,0
-    };
+// static bool sdo_read_i32(uint8_t node, uint16_t index, uint8_t subidx, int32_t& out_val) {
+//     uint8_t req[8] = {
+//         0x40,
+//         (uint8_t)(index & 0xFF),
+//         (uint8_t)(index >> 8),
+//         subidx,
+//         0,0,0,0
+//     };
 
-    const uint32_t resp_id = SDO_RESP + node;
-    g_can.send(SDO_REQ + node, req, 8);
+//     const uint32_t resp_id = SDO_RESP + node;
+//     g_can.send(SDO_REQ + node, req, 8);
 
-    auto deadline = std::chrono::steady_clock::now()
-        + std::chrono::milliseconds((int)(ENCODER_SDO_TIMEOUT * 1000));
+//     auto deadline = std::chrono::steady_clock::now()
+//         + std::chrono::milliseconds((int)(ENCODER_SDO_TIMEOUT * 1000));
 
-    struct can_frame frame;
-    while (std::chrono::steady_clock::now() < deadline) {
-        if (g_can.recv(frame)) {
-            if (frame.can_id != resp_id || frame.can_dlc < 8) continue;
+//     struct can_frame frame;
+//     while (std::chrono::steady_clock::now() < deadline) {
+//         if (g_can.recv(frame)) {
+//             if (frame.can_id != resp_id || frame.can_dlc < 8) continue;
 
-            // Verify it's the response to the same index/subindex
-            if (frame.data[1] != (index & 0xFF) ||
-                frame.data[2] != (index >> 8) ||
-                frame.data[3] != subidx) {
-                continue;
-            }
+//             // Verify it's the response to the same index/subindex
+//             if (frame.data[1] != (index & 0xFF) ||
+//                 frame.data[2] != (index >> 8) ||
+//                 frame.data[3] != subidx) {
+//                 continue;
+//             }
 
-            // Abort?
-            if (frame.data[0] == 0x80) return false;
+//             // Abort?
+//             if (frame.data[0] == 0x80) return false;
 
-            // For expedited i32 reads, value is in bytes 4..7
-            std::memcpy(&out_val, &frame.data[4], 4);
-            return true;
-        }
-    }
-    return false;
-}
+//             // For expedited i32 reads, value is in bytes 4..7
+//             std::memcpy(&out_val, &frame.data[4], 4);
+//             return true;
+//         }
+//     }
+//     return false;
+// }
 
 // static bool read_encoder(uint8_t node, int32_t& out_counts) {
 //     return sdo_read_i32(node, OBJ_POSITION_ACTUAL, 0x00, out_counts);
