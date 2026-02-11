@@ -251,12 +251,12 @@ static bool sdo_read_i32(uint8_t node, uint16_t index, uint8_t subidx, int32_t& 
     return false;
 }
 
-static bool read_encoder(uint8_t node, int32_t& out_counts) {
-    return sdo_read_i32(node, OBJ_POSITION_ACTUAL, 0x00, out_counts);
-}
-static bool read_velocity_actual(uint8_t node, int32_t& out_vel) {
-    return sdo_read_i32(node, OBJ_VELOCITY_ACTUAL, 0x00, out_vel);
-}
+// static bool read_encoder(uint8_t node, int32_t& out_counts) {
+//     return sdo_read_i32(node, OBJ_POSITION_ACTUAL, 0x00, out_counts);
+// }
+// static bool read_velocity_actual(uint8_t node, int32_t& out_vel) {
+//     return sdo_read_i32(node, OBJ_VELOCITY_ACTUAL, 0x00, out_vel);
+// }
 
 /// TODO: send data on packets over UDP
 
