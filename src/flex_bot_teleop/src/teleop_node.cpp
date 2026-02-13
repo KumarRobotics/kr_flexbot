@@ -27,13 +27,13 @@ public:
     axis_rx_          = this->declare_parameter<int>("axis_rx", 3);   // Right stick X
     axis_lt_          = this->declare_parameter<int>("axis_lt", 2);   // Left trigger
     axis_rt_          = this->declare_parameter<int>("axis_rt", 5);   // Right trigger
-    invert_ly_        = this->declare_parameter<bool>("invert_ly", true);   // up is usually -1
+    invert_ly_        = this->declare_parameter<bool>("invert_ly", false);   // up is usually -1
     invert_rx_        = this->declare_parameter<bool>("invert_rx", false);
     invert_lt_        = this->declare_parameter<bool>("invert_lt", false);
     invert_rt_        = this->declare_parameter<bool>("invert_rt", false);
     deadman_button_   = this->declare_parameter<int>("deadman_button", -1); // -1 disables
     deadband_         = this->declare_parameter<double>("deadband", 0.08);
-    mix_scale_        = this->declare_parameter<double>("mix_scale", 0.8);  // your 0.8 factor
+    mix_scale_        = this->declare_parameter<double>("mix_scale", 1.0);  // your 0.8 factor
     max_rpm_cmd_      = this->declare_parameter<double>("max_rpm_cmd", 30.0);
     turret_max_rad_s_ = this->declare_parameter<double>("turret_max_rad_s", 2.0);
     publish_rate_hz_  = this->declare_parameter<double>("publish_rate_hz", 100.0);
