@@ -42,8 +42,8 @@ static constexpr uint16_t     UDP_SEND_PORT       = 5002;
 static constexpr int          CONTROL_RATE_HZ     = 50;   // 50Hz motor control
 static constexpr int          ENCODER_RATE_HZ     = 20;   // 20Hz encoder feedback
 static constexpr double       ENCODER_SDO_TIMEOUT = 0.05; // 50ms SDO timeout
-static constexpr double       ENC_COUNTS_PER_REV  = 4096.0;
-static constexpr double       MAX_RPM_FEEDBACK    = 500.0;   // clamp for sanity
+static constexpr double       ENC_COUNTS_PER_REV  = 36864.0;
+static constexpr double       MAX_RPM_FEEDBACK    = 5000000.0;   // clamp for sanity
 
 
 // ─── CAN IDs ─────────────────────────────────────────────────────────────────
@@ -428,7 +428,7 @@ static void encoder_feedback_thread() {
 
                     left_rpm_f  = (float)(( (double)left_delta  / (double)ENC_COUNTS_PER_REV) * 60.0 / dt);
                     right_rpm_f = (float)(( (double)right_delta / (double)ENC_COUNTS_PER_REV) * 60.0 / dt);
-
+                    left_rpm_f = left_rpm_f * 1.0f; right_rpm_f = right_rpm_f * -1.0f; 
                     // Clamp for sanity
                     if (std::abs(left_rpm_f) > MAX_RPM_FEEDBACK) left_rpm_f = 0.0f;
                     if (std::abs(right_rpm_f) > MAX_RPM_FEEDBACK) right_rpm_f = 0.0f;
