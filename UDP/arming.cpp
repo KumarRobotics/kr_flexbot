@@ -2,8 +2,10 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <openssl/hmac.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -33,7 +35,9 @@ static const int MAX_SKEW_SEC = 5;
 
 static long unix_time_sec() {
   using namespace std::chrono;
-  return duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+  return duration_cast<std::chrono::seconds>(
+             std::chrono::system_clock::now().time_since_epoch())
+      .count();
 }
 
 static std::string hex_lower(const unsigned char* data, size_t len) {
@@ -41,8 +45,8 @@ static std::string hex_lower(const unsigned char* data, size_t len) {
   std::string out;
   out.resize(len * 2);
   for (size_t i = 0; i < len; i++) {
-    out[2*i]   = hexd[(data[i] >> 4) & 0xF];
-    out[2*i+1] = hexd[(data[i]     ) & 0xF];
+    out[2 * i] = hexd[(data[i] >> 4) & 0xF];
+    out[2 * i + 1] = hexd[(data[i]) & 0xF];
   }
   return out;
 }
@@ -54,14 +58,14 @@ static bool constant_time_eq(const std::string& a, const std::string& b) {
   return r == 0;
 }
 
-static std::string hmac_sha256_hex(const std::string& key, const std::string& msg) {
+static std::string hmac_sha256_hex(const std::string& key,
+                                   const std::string& msg) {
   unsigned int out_len = 0;
   unsigned char out[EVP_MAX_MD_SIZE];
 
-  HMAC(EVP_sha256(),
-       key.data(), (int)key.size(),
-       reinterpret_cast<const unsigned char*>(msg.data()), msg.size(),
-       out, &out_len);
+  HMAC(EVP_sha256(), key.data(), (int)key.size(),
+       reinterpret_cast<const unsigned char*>(msg.data()), msg.size(), out,
+       &out_len);
 
   return hex_lower(out, out_len);
 }
@@ -74,19 +78,72 @@ static std::vector<std::string> split(const std::string& s, char delim) {
   return parts;
 }
 
-static int run_script(const char* path) {
+static int run_script_blocking(const char* path) {
   // Use /bin/sh explicitly (no need for exec bits)
   std::string cmd = std::string("/bin/sh ") + path;
   std::cout << "[RUN] " << cmd << std::endl;
+
   int rc = std::system(cmd.c_str());
   if (rc == -1) {
     std::cerr << "[ERR] system() failed: " << strerror(errno) << std::endl;
     return 1;
   }
-  // system() returns shell status; normalize a bit
   int exit_code = WIFEXITED(rc) ? WEXITSTATUS(rc) : 1;
   std::cout << "[DONE] " << path << " rc=" << exit_code << std::endl;
   return exit_code;
+}
+
+// Start script as a separate process group so STOP can kill everything it spawned.
+static pid_t start_script_nonblocking(const char* path) {
+  pid_t pid = fork();
+  if (pid < 0) {
+    std::cerr << "[ERR] fork() failed: " << strerror(errno) << "\n";
+    return -1;
+  }
+  if (pid == 0) {
+    // Child: new session => new process group
+    if (setsid() < 0) {
+      std::cerr << "[ERR] setsid() failed: " << strerror(errno) << "\n";
+      _exit(127);
+    }
+
+    // Exec /bin/sh path
+    execl("/bin/sh", "sh", path, (char*)nullptr);
+    std::cerr << "[ERR] execl(/bin/sh " << path
+              << ") failed: " << strerror(errno) << "\n";
+    _exit(127);
+  }
+
+  std::cout << "[SPAWN] started " << path << " pid=" << pid
+            << " (pgid=" << pid << ")\n";
+  return pid;
+}
+
+static bool pid_is_running(pid_t pid) {
+  if (pid <= 0) return false;
+  int rc = kill(pid, 0);
+  return (rc == 0 || errno != ESRCH);
+}
+
+static void stop_process_group(pid_t pgid) {
+  if (pgid <= 0) return;
+
+  // Try graceful termination first
+  std::cout << "[STOP] SIGTERM pgid=" << pgid << "\n";
+  kill(-pgid, SIGTERM);  // negative => process group
+
+  // Wait up to ~1s
+  for (int i = 0; i < 10; i++) {
+    if (!pid_is_running(pgid)) {
+      std::cout << "[STOP] process group exited\n";
+      return;
+    }
+    usleep(100 * 1000);
+  }
+
+  // Force kill
+  std::cout << "[STOP] SIGKILL pgid=" << pgid << "\n";
+  kill(-pgid, SIGKILL);
 }
 
 int main() {
@@ -118,12 +175,22 @@ int main() {
   std::cout << "[OK] Allowing only src " << ALLOWED_SRC_IP << "\n";
 
   bool armed = false;
+  pid_t start_comm_pid = -1;  // pid == pgid because we setsid() in child
 
   while (true) {
+    // If child died, reflect that
+    if (armed && start_comm_pid > 0 && !pid_is_running(start_comm_pid)) {
+      std::cout << "[WARN] start_comm is no longer running; clearing armed\n";
+      armed = false;
+      start_comm_pid = -1;
+    }
+
     char buf[2048];
     sockaddr_in src{};
     socklen_t slen = sizeof(src);
-    ssize_t n = recvfrom(fd, buf, sizeof(buf)-1, 0, reinterpret_cast<sockaddr*>(&src), &slen);
+    ssize_t n =
+        recvfrom(fd, buf, sizeof(buf) - 1, 0,
+                 reinterpret_cast<sockaddr*>(&src), &slen);
     if (n < 0) {
       std::cerr << "[ERR] recvfrom(): " << strerror(errno) << std::endl;
       continue;
@@ -135,12 +202,14 @@ int main() {
     int src_port = ntohs(src.sin_port);
 
     std::string msg(buf);
-    // trim trailing newlines/spaces
-    while (!msg.empty() && (msg.back()=='\n' || msg.back()=='\r' || msg.back()==' ' || msg.back()=='\t'))
+    while (!msg.empty() &&
+           (msg.back() == '\n' || msg.back() == '\r' || msg.back() == ' ' ||
+            msg.back() == '\t'))
       msg.pop_back();
 
     if (std::string(src_ip) != ALLOWED_SRC_IP) {
-      std::cout << "[DROP] from " << src_ip << ":" << src_port << " msg=" << msg << "\n";
+      std::cout << "[DROP] from " << src_ip << ":" << src_port
+                << " msg=" << msg << "\n";
       continue;
     }
 
@@ -187,24 +256,31 @@ int main() {
         std::cout << "[INFO] already armed; ignoring ARM\n";
         continue;
       }
-      std::cout << "[ARM] Trigger accepted. Running init + start_comm...\n";
 
-      int rc1 = run_script(INIT_SCRIPT);
+      std::cout << "[ARM] Trigger accepted. Running init + starting start_comm...\n";
+      int rc1 = run_script_blocking(INIT_SCRIPT);
       if (rc1 != 0) {
         std::cout << "[ERR] init_motors failed; not starting comm\n";
         continue;
       }
-      int rc2 = run_script(START_SCRIPT);
-      if (rc2 == 0) {
+
+      start_comm_pid = start_script_nonblocking(START_SCRIPT);
+      if (start_comm_pid > 0) {
         armed = true;
-        std::cout << "[ARM] Motors comm started.\n";
+        std::cout << "[ARM] start_comm launched.\n";
       } else {
-        std::cout << "[ERR] start_comm failed.\n";
+        std::cout << "[ERR] failed to launch start_comm\n";
       }
-    } else { // STOP
-      std::cout << "[STOP] Trigger accepted. (No stop action implemented here.)\n";
-      // If you have a stop script, call it here.
-      // run_script("/home/bg_bot/UDP/stop_comm.sh");
+
+    } else {  // STOP
+      std::cout << "[STOP] Trigger accepted.\n";
+      if (start_comm_pid > 0) {
+        stop_process_group(start_comm_pid);
+      } else {
+        std::cout << "[STOP] no start_comm pid recorded; nothing to kill\n";
+      }
+      armed = false;
+      start_comm_pid = -1;
     }
   }
 
