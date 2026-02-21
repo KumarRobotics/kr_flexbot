@@ -57,7 +57,7 @@ WheelOdomNode::WheelOdomNode()
   // Publisher
   pub_odom_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, 10);
 
-  publish_tf_ = declare_parameter<bool>("publish_tf", true);
+  publish_tf_ = declare_parameter<bool>("publish_tf", false);
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // Subscriptions
