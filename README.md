@@ -1,6 +1,6 @@
-# SICK PicoScan + IMU + EKF + SLAM Toolbox
+# Companion Computer Setup for Flex Bot
 
-This repository documents the full bringup pipeline for running a **SICK PicoScan LiDAR**
+This repository documents the full bringup pipeline for running State Estimation
 with its IMU, fusing data using `robot_localization` (EKF), and performing 2D SLAM using
 `slam_toolbox`.
 
