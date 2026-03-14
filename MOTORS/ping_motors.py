@@ -4,7 +4,7 @@ import time
 
 bus = can.Bus(channel='can0', interface='socketcan')
 
-for node in [3, 4]:
+for node in [1, 2, 3, 4]:
     print(f"\nPinging Motor Node {node}...")
     
     req_id = 0x600 + node
