@@ -25,7 +25,7 @@
 
 static constexpr const char* LCD_PORT        = "/dev/ttymxc2";
 static constexpr speed_t     BAUDRATE        = B57600;
-static constexpr const char* CAN_INTERFACE   = "can1";
+static constexpr const char* CAN_INTERFACE   = "can0";
 static constexpr const char* WIFI_INTERFACE  = "wlp1s0";
 static constexpr uint32_t    BATTERY_CAN_ID  = 0x1B1;
 
