@@ -158,7 +158,7 @@ static void send_cmd_rpdo_and_sync(CanSocket& can, uint32_t rpdo_id, uint16_t ct
 
 int main() {
   try {
-    CanSocket can("can0");
+    CanSocket can("can1");
 
     constexpr uint8_t NODE = 2;
 
