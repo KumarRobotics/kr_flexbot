@@ -187,7 +187,7 @@ static void send_cmd(CanSocket& can, const CobIds& cob, uint16_t ctrl, int32_t v
 int main() {
   std::signal(SIGINT, on_sigint);
 
-  const std::string IFACE = "can0";
+  const std::string IFACE = "can1";
   const uint8_t NODE_ID = 1; // same with python (0x601/0x581 and 0x501)
 
   const CobIds cob = make_cob_ids(NODE_ID);

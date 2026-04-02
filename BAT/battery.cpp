@@ -30,7 +30,7 @@
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-static constexpr const char* CAN_INTERFACE     = "can1";
+static constexpr const char* CAN_INTERFACE     = "can0";
 static constexpr uint32_t    CAN_ID_PRIMARY    = 0x1B1;
 static constexpr uint32_t    CAN_ID_TEMP       = 0x4B1;
 static constexpr double      NOMINAL_CAPACITY  = 30.0;  // Ah

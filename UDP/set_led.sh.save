@@ -1,0 +1,17 @@
+#!/bin/bash
+
+RED_LED="/sys/class/leds/red:status/brightness"
+GREEN_LED="/sys/class/leds/green:status/brightness"
+BLUE_LED="/sys/class/leds/blue:status/brightness"
+
+R=${1:-0}
+G=${2:-0}
+B=${3:-0}
+
+echo "$R" > "$RED_LED"
+echo "$G" > "$GREEN_LED"
+echo "$B" > "$BLUE_LED"
+
+echo 255 > /sys/class/leds/red:status/brightness
+echo 0   > /sys/class/leds/green:status/brightness
+echo 0   > /sys/class/leds/blue:status/brightness
